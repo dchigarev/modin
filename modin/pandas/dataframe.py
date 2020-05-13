@@ -403,7 +403,7 @@ class DataFrame(BasePandasDataset):
 
         if is_list_like(by) and len(by) == 1:
             by = by[0]
-        
+
         if callable(by):
             by = self.index.map(by)
         elif isinstance(by, str):

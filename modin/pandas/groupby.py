@@ -104,6 +104,7 @@ class DataFrameGroupBy(object):
 
     @property
     def _index_grouped(self):
+        # import pdb; pdb.set_trace()
         if self._index_grouped_cache is None:
             if hasattr(self._by, "columns") and len(self._by.columns) > 1:
                 by = list(self._by.columns)
@@ -125,7 +126,7 @@ class DataFrameGroupBy(object):
                 }
             else:
                 if isinstance(self._by, type(self._query_compiler)):
-                    by = self._by.to_pandas().squeeze()
+                    by = self._by.to_pandas().squeeze().ravel()
                 else:
                     by = self._by
                 if self._axis == 0:
