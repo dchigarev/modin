@@ -126,21 +126,25 @@ def test_mixed_dtypes_groupby(as_index):
 
 
 @pytest.mark.parametrize(
-    "by", [[1, 2, 1, 2], lambda x: x % 3, "col1", ["col1", "col2"]]
+    "by", [[1, 2, 1, 2], lambda x: x % 3, "col1", ["col1"], ["col1", "col2"]]
 )
 @pytest.mark.parametrize("as_index", [True, False])
-def test_simple_row_groupby(by, as_index):
-    pandas_df = pandas.DataFrame(
-        {
+@pytest.mark.parametrize("col1_categories", [True, False])
+def test_simple_row_groupby(by, as_index, col1_categories):
+    data = {
             "col1": [0, 1, 2, 3],
             "col2": [4, 5, 6, 7],
             "col3": [3, 8, 12, 10],
             "col4": [17, 13, 16, 15],
             "col5": [-4, -5, -6, -7],
         }
-    )
+    
+    modin_df, pandas_df = pd.DataFrame(data), pandas.DataFrame(data)
 
-    modin_df = from_pandas(pandas_df)
+    if col1_categories:
+        pandas_df.astype({"col1": "category"}, copy=False)
+        modin_df.astype({"col1": "category"}, copy=False)
+
     n = 1
     modin_groupby = modin_df.groupby(by=by, as_index=as_index)
     pandas_groupby = pandas_df.groupby(by=by, as_index=as_index)
