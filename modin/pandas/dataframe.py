@@ -850,6 +850,9 @@ class DataFrame(BasePandasDataset):
             value = value._to_pandas()
 
         if len(self.index) == 0:
+            if isinstance(value, Series):
+                # TODO: Remove broadcast of Series
+                value = value._to_pandas()
             try:
                 value = pandas.Series(value)
             except (TypeError, ValueError, IndexError):

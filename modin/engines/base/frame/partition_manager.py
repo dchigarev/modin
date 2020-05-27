@@ -494,6 +494,7 @@ class BaseFrameManager(object):
         Returns:
             A new BaseFrameManager object, the type of object that called this.
         """
+        #import pdb; pdb.set_trace()
         if partitions.size == 0:
             return np.array([[]])
         # Handling dictionaries has to be done differently, but we still want

@@ -3410,6 +3410,7 @@ class BasePandasDataset(object):
             "_create_or_update_from_compiler",
             "_update_inplace",
         ]
+        print(self, item)
         if item not in default_behaviors:
             method = object.__getattribute__(self, item)
             is_callable = callable(method)

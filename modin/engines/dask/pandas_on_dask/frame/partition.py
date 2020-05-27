@@ -78,6 +78,7 @@ class PandasOnDaskFramePartition(BaseFramePartition):
              A new `BaseFramePartition` containing the object that has had `func`
              applied to it.
         """
+        #import pdb; pdb.set_trace()
         func = pkl.dumps(func)
         call_queue = self.call_queue + [[func, kwargs]]
         future = get_client().submit(

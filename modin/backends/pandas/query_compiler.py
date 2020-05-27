@@ -20,6 +20,7 @@ from pandas.core.dtypes.common import (
 )
 from pandas.core.base import DataError
 
+from modin.pandas import Series
 from modin.backends.base.query_compiler import BaseQueryCompiler
 from modin.error_message import ErrorMessage
 from modin.data_management.functions import (
@@ -977,16 +978,20 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Returns:
             A new PandasQueryCompiler with new data inserted.
         """
+        #import pdb; pdb.set_trace()
         if is_list_like(value):
             # TODO make work with another querycompiler object as `value`.
             # This will require aligning the indices with a `reindex` and ensuring that
             # the data is partitioned identically.
-            if isinstance(value, pandas.Series):
+            if isinstance(value, (pandas.Series, Series)):
                 value = value.reindex(self.index)
             else:
                 value = list(value)
 
         def insert(df, internal_indices=[]):
+            print("DF: ", df)
+            print("TYPE: ", type(df))
+            print("IND: ", internal_indices)
             internal_idx = int(internal_indices[0])
             df.insert(internal_idx, column, value)
             return df
