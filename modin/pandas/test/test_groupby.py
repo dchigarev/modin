@@ -16,12 +16,19 @@ import pandas
 import numpy as np
 import modin.pandas as pd
 from modin.pandas.utils import from_pandas, to_pandas
-from .utils import df_equals
+from .utils import df_equals, df_categories_equals
 
 pd.DEFAULT_NPARTITIONS = 4
 
 
 def modin_df_almost_equals_pandas(modin_df, pandas_df):
+    if not isinstance(pandas_df, pandas.Series):
+        to_drop = modin_df.select_dtype("category").columns
+        df_categories_equals(to_pandas(modin_df), pandas_df)
+        for column in to_drop:
+            modin_df = modin_df.drop(column, axis=1)
+            pandas_df = pandas_df.drop(column, axis=1)
+
     difference = to_pandas(modin_df) - pandas_df
     diff_max = difference.max().max()
     assert (
@@ -164,21 +171,30 @@ def test_mixed_dtypes_groupby(as_index):
 
 
 @pytest.mark.parametrize(
-    "by", [[1, 2, 1, 2], lambda x: x % 3, "col1", ["col1", "col2"]]
+    "by", [[1, 2, 1, 2], lambda x: x % 3, "col1", ["col1"], 
+    ["col1", "col2"]]
 )
 @pytest.mark.parametrize("as_index", [True, False])
-def test_simple_row_groupby(by, as_index):
-    pandas_df = pandas.DataFrame(
-        {
-            "col1": [0, 1, 2, 3],
-            "col2": [4, 5, 6, 7],
-            "col3": [3, 8, 12, 10],
-            "col4": [17, 13, 16, 15],
-            "col5": [-4, -5, -6, -7],
-        }
-    )
+@pytest.mark.parametrize("col1_categories", [True, False])
+def test_simple_row_groupby(by, as_index, col1_categories):
+    data = {
+        "col1": [0, 1, 2, 3],
+        "col2": [4, 5, 6, 7],
+        "col3": [3, 8, 12, 10],
+        "col4": [17, 13, 16, 15],
+        "col5": [-4, -5, -6, -7],
+    }
 
-    modin_df = from_pandas(pandas_df)
+    modin_df, pandas_df = pd.DataFrame(data), pandas.DataFrame(data)
+    # import pdb
+
+    # if by=='col1' and not as_index:
+    #     pdb.set_trace()
+
+    if col1_categories:
+        pandas_df = pandas_df.astype({"col1": "category"})
+        modin_df = modin_df.astype({"col1": "category"})
+
     n = 1
     modin_groupby = modin_df.groupby(by=by, as_index=as_index)
     pandas_groupby = pandas_df.groupby(by=by, as_index=as_index)
