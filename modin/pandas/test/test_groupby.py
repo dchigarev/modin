@@ -100,7 +100,7 @@ def test_mixed_dtypes_groupby(as_index):
             modin_df_almost_equals_pandas,
             is_default=True,
         )
-        eval_mean(modin_groupby, pandas_groupby)
+        eval_general(modin_groupby, pandas_groupby, lambda df: df.mean(), modin_df_almost_equals_pandas)
         eval_any(modin_groupby, pandas_groupby)
         eval_min(modin_groupby, pandas_groupby)
         eval_general(
@@ -241,7 +241,7 @@ def test_simple_row_groupby(by, as_index, col1_categories):
         modin_df_almost_equals_pandas,
         is_default=True,
     )
-    eval_mean(modin_groupby, pandas_groupby)
+    eval_general(modin_groupby, pandas_groupby, lambda df: df.mean(), modin_df_almost_equals_pandas)
     eval_any(modin_groupby, pandas_groupby)
     eval_min(modin_groupby, pandas_groupby)
     eval_general(modin_groupby, pandas_groupby, lambda df: df.idxmax(), is_default=True)
@@ -363,7 +363,7 @@ def test_single_group_row_groupby():
         modin_df_almost_equals_pandas,
         is_default=True,
     )
-    eval_mean(modin_groupby, pandas_groupby)
+    eval_general(modin_groupby, pandas_groupby, lambda df: df.mean(), modin_df_almost_equals_pandas)
     eval_any(modin_groupby, pandas_groupby)
     eval_min(modin_groupby, pandas_groupby)
     eval_general(modin_groupby, pandas_groupby, lambda df: df.idxmax(), is_default=True)
@@ -472,7 +472,7 @@ def test_large_row_groupby():
         modin_df_almost_equals_pandas,
         is_default=True,
     )
-    eval_mean(modin_groupby, pandas_groupby)
+    eval_general(modin_groupby, pandas_groupby, lambda df: df.mean(), modin_df_almost_equals_pandas)
     eval_any(modin_groupby, pandas_groupby)
     eval_min(modin_groupby, pandas_groupby)
     eval_general(modin_groupby, pandas_groupby, lambda df: df.idxmax(), is_default=True)
@@ -570,7 +570,7 @@ def test_simple_col_groupby():
 
     modin_df = from_pandas(pandas_df)
 
-    by = [1, 2, 3, 2, 1]
+    by = [1, 2, 3, 3, 2, 1]
 
     modin_groupby = modin_df.groupby(axis=1, by=by)
     pandas_groupby = pandas_df.groupby(axis=1, by=by)
@@ -586,7 +586,7 @@ def test_simple_col_groupby():
         modin_df_almost_equals_pandas,
         is_default=True,
     )
-    eval_mean(modin_groupby, pandas_groupby)
+    eval_general(modin_groupby, pandas_groupby, lambda df: df.mean(), modin_df_almost_equals_pandas)
     eval_any(modin_groupby, pandas_groupby)
     eval_min(modin_groupby, pandas_groupby)
     eval_ndim(modin_groupby, pandas_groupby)
@@ -695,7 +695,7 @@ def test_series_groupby(by, as_index):
             modin_df_almost_equals_pandas,
             is_default=True,
         )
-        eval_mean(modin_groupby, pandas_groupby)
+        eval_general(modin_groupby, pandas_groupby, lambda df: df.mean(), modin_df_almost_equals_pandas)
         eval_any(modin_groupby, pandas_groupby)
         eval_min(modin_groupby, pandas_groupby)
         eval_general(
@@ -814,10 +814,6 @@ def eval_ngroups(modin_groupby, pandas_groupby):
 
 def eval_skew(modin_groupby, pandas_groupby):
     modin_df_almost_equals_pandas(modin_groupby.skew(), pandas_groupby.skew())
-
-
-def eval_mean(modin_groupby, pandas_groupby):
-    modin_df_almost_equals_pandas(modin_groupby.mean(), pandas_groupby.mean())
 
 
 def eval_any(modin_groupby, pandas_groupby):

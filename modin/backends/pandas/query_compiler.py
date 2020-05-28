@@ -1255,13 +1255,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
             def compute_groupby(df):
                 grouped_df = df.groupby(by=by, axis=axis, **groupby_args)
-                try:
-                    result = agg_func(grouped_df, **agg_args)
-                # This happens when the partition is filled with non-numeric data and a
-                # numeric operation is done. We need to build the index here to avoid
-                # issues with extracting the index.
-                except (DataError, TypeError):
-                    result = pandas.DataFrame(index=grouped_df.size().index)
+                # try:
+                result = agg_func(grouped_df, **agg_args)
+                # # This happens when the partition is filled with non-numeric data and a
+                # # numeric operation is done. We need to build the index here to avoid
+                # # issues with extracting the index.
+                # except (DataError, TypeError):
+                #     result = pandas.DataFrame(index=grouped_df.size().index)
                 return result
 
             try:
