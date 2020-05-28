@@ -23,7 +23,7 @@ pd.DEFAULT_NPARTITIONS = 4
 
 def modin_df_almost_equals_pandas(modin_df, pandas_df):
     if not isinstance(pandas_df, pandas.Series):
-        to_drop = modin_df.select_dtype("category").columns
+        to_drop = modin_df.select_dtypes("category").columns
         df_categories_equals(to_pandas(modin_df), pandas_df)
         for column in to_drop:
             modin_df = modin_df.drop(column, axis=1)
