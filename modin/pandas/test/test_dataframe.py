@@ -1440,6 +1440,25 @@ class TestDataFrameMapMetadata:
         modin_df = pd.DataFrame(data)
         pandas_df = pandas.DataFrame(data)
 
+        astypes = ["category", "int32", "float"]
+        for astype in astypes:
+            # categories with NaN works incorrect for now
+            if astype == "category" and pandas_df.iloc[:, 0].isnull().any():
+                continue
+
+            md_value, pd_value = modin_df.iloc[:, 0], pandas_df.iloc[:, 0]
+            try:
+                md_value, pd_value = md_value.astype(astype), pd_value.astype(astype)
+            except ValueError:
+                pass
+            else:
+                modin_df.insert(0, "TypeSaver", md_value)
+                pandas_df.insert(0, "TypeSaver", pd_value)
+                df_equals(modin_df, pandas_df)
+
+                modin_df = pd.DataFrame(data)
+                pandas_df = pandas.DataFrame(data)
+
         modin_df.insert(0, "Duplicate", modin_df[modin_df.columns[0]])
         pandas_df.insert(0, "Duplicate", pandas_df[pandas_df.columns[0]])
         df_equals(modin_df, pandas_df)
