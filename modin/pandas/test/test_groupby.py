@@ -206,7 +206,7 @@ def test_mixed_dtypes_groupby(as_index):
     "by", [[1, 2, 1, 2], lambda x: x % 3, "col1", ["col1"], ["col1", "col2"]]
 )
 @pytest.mark.parametrize("as_index", [True, False])
-@pytest.mark.parametrize("col1_categories", [True, False])
+@pytest.mark.parametrize("col1_categories", [False])
 def test_simple_row_groupby(by, as_index, col1_categories):
     data = {
         "col1": [0, 1, 2, 3],
@@ -214,6 +214,7 @@ def test_simple_row_groupby(by, as_index, col1_categories):
         "col3": [3, 8, 12, 10],
         "col4": [17, 13, 16, 15],
         "col5": [-4, -5, -6, -7],
+        "col6": [pd.Timedelta("%d days" % i) for i in range(2, 6)]
     }
 
     modin_df, pandas_df = pd.DataFrame(data), pandas.DataFrame(data)
