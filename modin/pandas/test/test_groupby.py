@@ -310,7 +310,7 @@ def test_simple_row_groupby(by, as_index, col1_categories):
 
     transform_functions = [lambda df: df + 4, lambda df: -df - 10]
     for func in transform_functions:
-        eval_transform(modin_groupby, pandas_groupby, func)
+        eval_general(modin_groupby, pandas_groupby, lambda df: df.transform(func))
 
     pipe_functions = [lambda dfgb: dfgb.sum()]
     for func in pipe_functions:
