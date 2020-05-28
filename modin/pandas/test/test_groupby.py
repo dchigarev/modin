@@ -336,10 +336,11 @@ def test_single_group_row_groupby():
     pandas_df = pandas.DataFrame(
         {
             "col1": [0, 1, 2, 3],
-            "col2": [4, 5, 36, 7],
+            "col2": [4, 5, 6, 7],
             "col3": [3, 8, 12, 10],
-            "col4": [17, 3, 16, 15],
-            "col5": [-4, 5, -6, -7],
+            "col4": [17, 13, 16, 15],
+            "col5": [-4, -5, -6, -7],
+            "col6": [pd.Timedelta("%d days" % i) for i in range(2, 6)]
         }
     )
 
@@ -558,11 +559,12 @@ def test_large_row_groupby():
 def test_simple_col_groupby():
     pandas_df = pandas.DataFrame(
         {
-            "col1": [0, 3, 2, 3],
-            "col2": [4, 1, 6, 7],
-            "col3": [3, 8, 2, 10],
-            "col4": [1, 13, 6, 15],
-            "col5": [-4, 5, 6, -7],
+            "col1": [0, 1, 2, 3],
+            "col2": [4, 5, 6, 7],
+            "col3": [3, 8, 12, 10],
+            "col4": [17, 13, 16, 15],
+            "col5": [-4, -5, -6, -7],
+            "col6": [pd.Timedelta("%d days" % i) for i in range(2, 6)]
         }
     )
 
