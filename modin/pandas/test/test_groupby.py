@@ -116,6 +116,7 @@ def test_mixed_dtypes_groupby(as_index):
             eval_apply(modin_groupby, pandas_groupby, func)
 
         eval_dtypes(modin_groupby, pandas_groupby)
+        #import pdb; pdb.set_trace()
         eval_general(
             modin_groupby, pandas_groupby, lambda df: df.first(), is_default=True
         )
