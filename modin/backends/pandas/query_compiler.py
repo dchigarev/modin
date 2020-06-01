@@ -250,6 +250,17 @@ class PandasQueryCompiler(BaseQueryCompiler):
     __xor__ = BinaryFunction.register(pandas.DataFrame.__xor__)
     update = BinaryFunction.register(copy_df_for_func(pandas.DataFrame.update))
 
+    def info(
+        self, verbose=None, buf=None, max_cols=None, memory_usage=None, null_counts=None
+    ):
+        self._modin_frame.info(
+            verbose=verbose,
+            buf=buf,
+            max_cols=max_cols,
+            memory_usage=memory_usage,
+            null_counts=null_counts,
+        )
+
     def where(self, cond, other, **kwargs):
         """Gets values from this manager where cond is true else from other.
 
