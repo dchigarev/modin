@@ -925,7 +925,7 @@ class DataFrame(BasePandasDataset):
 
         def verbose_repr(output):
             columns_line = f"Data columns (total {len(columns)} columns):"
-            output.extend(columns_line, header)
+            output.extend([columns_line, header])
             for i, col in enumerate(columns):
                 output.append(f" {i}\t{col}\t{non_null_count[col]} non-null\t{dtypes[col]}")
         
@@ -936,8 +936,10 @@ class DataFrame(BasePandasDataset):
 
         if verbose:
             verbose_repr(output)
-        elif verbose is None:
+        elif verbose is False:
             non_verbose_repr(output)
+        else:
+            verbose_repr(output)
 
         output.append(dtypes_line)
         
