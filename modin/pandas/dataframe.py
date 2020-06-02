@@ -879,8 +879,6 @@ class DataFrame(BasePandasDataset):
         Returns:
             Prints the summary of a DataFrame and returns None.
         """
-        buf = sys.stdout if not buf else buf
-
         def put_str(src, output_len=None, spaces=2):
             src = str(src)
             return src.ljust(output_len if output_len else len(src)) + " " * spaces
@@ -902,6 +900,9 @@ class DataFrame(BasePandasDataset):
         dtypes_line = f"dtypes: {', '.join(['{}({})'.format(dtype, count) for dtype, count in dtypes.value_counts().items()])}"
 
         exceeds_info_cols = columns_len > max_cols
+
+        if buf is None:
+            buf = sys.stdout
 
         if null_counts is None:
             null_counts = not exceeds_info_cols
@@ -991,9 +992,9 @@ class DataFrame(BasePandasDataset):
 
         if memory_usage:
             deep = memory_usage == "deep"
-
             mem_usage_bytes = self.memory_usage(index=True, deep=deep).sum()
             mem_line = f"memory usage: {format_size(mem_usage_bytes)}"
+
             output.append(mem_line)
 
         buf.write("\n".join(output))
