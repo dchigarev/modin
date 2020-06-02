@@ -955,13 +955,13 @@ class DataFrame(BasePandasDataset):
             header = put_str(head_label, lengths["head"]) + put_str(column_label, lengths["column"])
             if null_counts:
                 header += put_str(null_label, lengths["null"])
-            header += put_str(dtype_label, lengths["dtype"])
+            header += put_str(dtype_label, lengths["dtype"], spaces=0)
             output.append(header)
 
             delimiters = put_str(delimiter*lengths["head"]) +put_str(delimiter*lengths["column"])
             if null_counts:
                 delimiters += put_str(delimiter*lengths["null"])
-            delimiters += put_str(delimiter*lengths["dtype"])
+            delimiters += put_str(delimiter*lengths["dtype"], spaces=0)
             output.append(delimiters)
 
             return output, lengths
@@ -979,7 +979,7 @@ class DataFrame(BasePandasDataset):
                 to_append = put_str(" "+str(i), lengths["head"]) + put_str(col, lengths["column"])
                 if null_counts:
                     to_append+= put_str(str(non_null_count[col]) + " non_null", lengths["null"])
-                to_append+=put_str(dtypes[col], lengths["dtype"])
+                to_append+=put_str(dtypes[col], lengths["dtype"], spaces=0)
                 output.append(to_append)
                 
 
