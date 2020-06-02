@@ -845,7 +845,7 @@ class DataFrame(BasePandasDataset):
         )
 
     def info(
-        self, verbose=True, buf=None, max_cols=100, memory_usage=None, null_counts=None
+        self, verbose=None, buf=None, max_cols=None, memory_usage=None, null_counts=None
     ):
         """Print a concise summary of a DataFrame, which includes the index
         dtype and column dtypes, non-null values and memory usage.
@@ -883,6 +883,12 @@ class DataFrame(BasePandasDataset):
         buf = sys.stdout if not buf else buf
         import io
         import re
+
+        if verbose is None:
+            verbose = True
+
+        if max_cols is None:
+            max_cols = 100
 
         # self._default_to_pandas(
         #     pandas.DataFrame.info,
