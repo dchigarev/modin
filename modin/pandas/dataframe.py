@@ -921,7 +921,7 @@ class DataFrame(BasePandasDataset):
         index_line = self.index._summary()
         columns = self.columns
         columns_len = len(columns)
-        non_null_count = self.count()
+        non_null_count = self.count()._to_pandas()
         dtypes = self.dtypes
 
         if null_counts is None:
