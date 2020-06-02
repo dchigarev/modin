@@ -978,7 +978,7 @@ class DataFrame(BasePandasDataset):
             for i, col in enumerate(columns):
                 to_append = put_str(" "+str(i), lengths["head"]) + put_str(col, lengths["column"])
                 if null_counts:
-                    to_append+= put_str(str(non_null_count[col]) + " non_null", lengths["null"])
+                    to_append+= put_str(str(non_null_count[col]) + " non-null", lengths["null"])
                 to_append+=put_str(dtypes[col], lengths["dtype"], spaces=0)
                 output.append(to_append)
                 
