@@ -20,6 +20,7 @@ import matplotlib
 import modin.pandas as pd
 from modin.pandas.utils import to_pandas
 from numpy.testing import assert_array_equal
+import io
 
 from .utils import (
     random_state,
@@ -106,6 +107,30 @@ def eval_insert(modin_df, pandas_df, **kwargs):
         operation=lambda df, **kwargs: df.insert(**kwargs),
         **_kwargs,
     )
+
+
+def eval_sideeffect(
+    modin_df, pandas_df, operation, sideeffect_container, comparator=None, **kwargs
+):
+    def default_comparator(val1, val2):
+        assert val1 == val2
+
+    if comparator is None:
+        comparator = default_comparator
+
+    md_container, pd_container = (
+        sideeffect_container(modin_df),
+        sideeffect_container(pandas_df),
+    )
+    eval_general(
+        modin_df,
+        pandas_df,
+        operation=operation,
+        comparator=lambda *args: True,
+        **kwargs,
+    )
+
+    comparator(md_container, pd_container)
 
 
 class TestDataFrameBinary:
@@ -2332,8 +2357,20 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize("max_cols", [-1, 0, 10, 99999999])
     @pytest.mark.parametrize("memory_usage", [None, True, False, "deep"])
     @pytest.mark.parametrize("null_counts", [None, True, False])
-    def test_info(self):
-        pass
+    def test_info(self, data, verbose, max_cols, memory_usage, null_counts):
+        with io.StringIO(), io.StringIO() as first, second:
+            eval_general(
+                pd.DataFrame(data),
+                pandas.DataFrame(data),
+                operation=lambda df, **kwargs: df.info(**kwargs),
+                verbose=verbose,
+                max_cols=max_cols,
+                memory_usage=memory_usage,
+                null_counts=null_counts,
+                buf=lambda df: second if isinstance(df, pandas.DataFrame) else first,
+            )
+            assert first.getvalue() == second.getvalue()
+
 
     def test_interpolate(self):
         data = test_data_values[0]
