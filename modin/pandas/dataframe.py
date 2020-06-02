@@ -948,20 +948,19 @@ class DataFrame(BasePandasDataset):
                 len(null_label),
                 max(len(pprint_thing(x)) for x in non_null_count) + len(non_null_label),
             )
-            lengths["dtype"] = max(
-                len(dtype_label), max(len(pprint_thing(dtype)) for dtype in dtypes)
-            )
+            lengths["dtype"] = len(dtype_label)
+            dtype_spaces = max(lengths["dtype"], max(len(pprint_thing(dtype)) for dtype in dtypes)) - lengths["dtype"]
 
             header = put_str(head_label, lengths["head"]) + put_str(column_label, lengths["column"])
             if null_counts:
                 header += put_str(null_label, lengths["null"])
-            header += put_str(dtype_label, lengths["dtype"], spaces=0)
+            header += put_str(dtype_label, lengths["dtype"], spaces=dtype_spaces)
             output.append(header)
 
             delimiters = put_str(delimiter*lengths["head"]) +put_str(delimiter*lengths["column"])
             if null_counts:
                 delimiters += put_str(delimiter*lengths["null"])
-            delimiters += put_str(delimiter*lengths["dtype"], spaces=0)
+            delimiters += put_str(delimiter*lengths["dtype"], spaces=dtype_spaces)
             output.append(delimiters)
 
             return output, lengths

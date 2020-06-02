@@ -2369,7 +2369,7 @@ class TestDataFrameDefault:
                 null_counts=null_counts,
                 buf=lambda df: second if isinstance(df, pandas.DataFrame) else first,
             )
-            assert first.getvalue().splitlines()[1:] == [s.rstrip() for s in second.getvalue().splitlines()[1:]]
+            assert [s.rstrip() for s in first.getvalue().splitlines()[1:]] == [s.rstrip() for s in second.getvalue().splitlines()[1:]]
 
 
     def test_interpolate(self):
