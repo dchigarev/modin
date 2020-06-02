@@ -879,36 +879,13 @@ class DataFrame(BasePandasDataset):
         Returns:
             Prints the summary of a DataFrame and returns None.
         """
-        # We will default to pandas because it will be faster than doing two passes
-        # over the data
         buf = sys.stdout if not buf else buf
-        import io
-        import re
-
-        if max_cols is None:
-            max_cols = 100
-
-        
-
-        # self._default_to_pandas(
-        #     pandas.DataFrame.info,
-        #     verbose=verbose,
-        #     buf=buf,
-        #     max_cols=max_cols,
-        #     memory_usage=memory_usage,
-        #     null_counts=null_counts,
-        # )
 
         def put_str(src, output_len=None, spaces=2):
-            return str(src).ljust(output_len if output_len else len(str(src)))+" "*spaces
-
-        # cached values:
-        
-            
-
+            src = str(src)
+            return src.ljust(output_len if output_len else len(src)) + " " * spaces
 
         def format_size(num):
-            # returns size in human readable format
             for x in ["bytes", "KB", "MB", "GB", "TB"]:
                 if num < 1024.0:
                     return f"{num:3.1f} {x}"
@@ -921,14 +898,22 @@ class DataFrame(BasePandasDataset):
         index_line = self.index._summary()
         columns = self.columns
         columns_len = len(columns)
-        non_null_count = self.count()._to_pandas()
         dtypes = self.dtypes
-
-        if null_counts is None:
-            null_counts = (columns_len <= max_cols)
+        dtypes_line = f"dtypes: {', '.join(['{}({})'.format(dtype, count) for dtype, count in dtypes.value_counts().items()])}"
 
         exceeds_info_cols = columns_len > max_cols
 
+        if null_counts is None:
+            null_counts = not exceeds_info_cols
+
+        if verbose is None:
+            verbose = not exceeds_info_cols
+
+        if null_counts and verbose:
+            non_null_count = self.count()._to_pandas()
+
+        if memory_usage is None:
+            memory_usage = True
 
         def get_header(spaces=2):
             output = []
@@ -944,29 +929,35 @@ class DataFrame(BasePandasDataset):
             lengths["column"] = max(
                 len(column_label), max(len(pprint_thing(col)) for col in columns)
             )
-            lengths["null"] = max(
-                len(null_label),
-                max(len(pprint_thing(x)) for x in non_null_count) + len(non_null_label),
-            )
             lengths["dtype"] = len(dtype_label)
-            dtype_spaces = max(lengths["dtype"], max(len(pprint_thing(dtype)) for dtype in dtypes)) - lengths["dtype"]
+            dtype_spaces = (
+                max(lengths["dtype"], max(len(pprint_thing(dtype)) for dtype in dtypes))
+                - lengths["dtype"]
+            )
 
-            header = put_str(head_label, lengths["head"]) + put_str(column_label, lengths["column"])
+            header = put_str(head_label, lengths["head"]) + put_str(
+                column_label, lengths["column"]
+            )
             if null_counts:
+                lengths["null"] = max(
+                    len(null_label),
+                    max(len(pprint_thing(x)) for x in non_null_count)
+                    + len(non_null_label),
+                )
                 header += put_str(null_label, lengths["null"])
             header += put_str(dtype_label, lengths["dtype"], spaces=dtype_spaces)
+
             output.append(header)
 
-            delimiters = put_str(delimiter*lengths["head"]) +put_str(delimiter*lengths["column"])
+            delimiters = put_str(delimiter * lengths["head"]) + put_str(
+                delimiter * lengths["column"]
+            )
             if null_counts:
-                delimiters += put_str(delimiter*lengths["null"])
-            delimiters += put_str(delimiter*lengths["dtype"], spaces=dtype_spaces)
+                delimiters += put_str(delimiter * lengths["null"])
+            delimiters += put_str(delimiter * lengths["dtype"], spaces=dtype_spaces)
             output.append(delimiters)
 
             return output, lengths
-        # data:
-
-        dtypes_line = f"dtypes: {', '.join(['{}({})'.format(dtype, count) for dtype, count in dtypes.value_counts().items()])}"
 
         output.extend([type_line, index_line])
 
@@ -975,70 +966,37 @@ class DataFrame(BasePandasDataset):
             header, lengths = get_header()
             output.extend([columns_line, *header])
             for i, col in enumerate(columns):
-                to_append = put_str(" "+str(i), lengths["head"]) + put_str(col, lengths["column"])
+                i, col, non_null, dtype = map(pprint_thing, [i, col, dtypes[col]])
+
+                to_append = put_str(" {}".format(i), lengths["head"]) + put_str(
+                    col, lengths["column"]
+                )
                 if null_counts:
-                    to_append+= put_str(str(non_null_count[col]) + " non-null", lengths["null"])
-                to_append+=put_str(dtypes[col], lengths["dtype"], spaces=0)
+                    non_null = pprint_thing(non_null_count[col])
+                    to_append += put_str(
+                        "{} non-null".format(non_null), lengths["null"]
+                    )
+                to_append += put_str(dtype, lengths["dtype"], spaces=0)
                 output.append(to_append)
-                
 
         def non_verbose_repr(output):
             output.append(columns._summary(name="Columns"))
 
         if verbose:
             verbose_repr(output)
-        elif verbose is False:
-            non_verbose_repr(output)
         else:
-            if exceeds_info_cols:
-                non_verbose_repr(output)
-            else:
-                verbose_repr(output)
+            non_verbose_repr(output)
 
         output.append(dtypes_line)
 
-        if memory_usage is None:
-            memory_usage = True
         if memory_usage:
-            memory_usage = bool(memory_usage)
+            deep = memory_usage == "deep"
 
-            mem_usage_bytes = self.memory_usage(index=True, deep=memory_usage).sum()
+            mem_usage_bytes = self.memory_usage(index=True, deep=deep).sum()
             mem_line = f"memory usage: {format_size(mem_usage_bytes)}"
             output.append(mem_line)
 
         buf.write("\n".join(output))
-        # result = self._query_compiler.info(
-        #     verbose=verbose,
-        #     buf=buf,
-        #     max_cols=max_cols,
-        #     memory_usage=memory_usage,
-        #     null_counts=null_counts,
-        # )
-
-        # glob_data = {}
-        # for entit in result:
-        #     data = entit.splitlines()[5:-2]
-        #     for line in data:
-        #         idx, col_name, non_null = re.sub(r"\s+", " ", line).split(" ")[1:4]
-        #         old_val = glob_data.get(col_name, {"idx": self.columns.get_loc(col_name), "non_null": 0})
-        #         glob_data.update(
-        #             {
-        #                 col_name: {
-        #                     "idx": old_val["idx"],
-        #                     "non_null": int(non_null) + old_val["non_null"],
-        #                 }
-        #             }
-        #         )
-        # print(glob_data)
-        # with io.StringIO() as tmp_buf:
-
-        #     #import pdb; pdb.set_trace()
-        #     result = tmp_buf.getvalue()
-        #     result = result.replace(
-        #         "pandas.core.frame.DataFrame", "modin.pandas.dataframe.DataFrame"
-        #     )
-        #     buf.write(result)
-        return None
 
     def insert(self, loc, column, value, allow_duplicates=False):
         """Insert column into DataFrame at specified location.

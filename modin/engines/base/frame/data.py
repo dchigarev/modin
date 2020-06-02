@@ -1170,31 +1170,37 @@ class BasePandasFrame(object):
         new_columns = self.columns.join(right_frame.columns, how=join_type)
         return self.__constructor__(new_frame, self.index, new_columns, None, None)
 
-
-
     def info(
         self, verbose=None, buf=None, max_cols=None, memory_usage=None, null_counts=None
     ):
         import io
         import sys
+
         # filebuf = open("C:\\Users\\dchigare\\Documents\\STORAGE\\test.txt", mode="w")
         # wrap_buf = io.TextIOWrapper(sys.stdout)
         sp = simple_buffer()
         for i in range(5):
             print("DEFAULT HASH: ", hash(sp))
+
         def fn(df):
-            df.info(verbose=verbose, max_cols=max_cols, memory_usage=memory_usage, null_counts=null_counts, buf=sp)
+            df.info(
+                verbose=verbose,
+                max_cols=max_cols,
+                memory_usage=memory_usage,
+                null_counts=null_counts,
+                buf=sp,
+            )
             return sp._info
-        #fn = lambda df: df.info(buf=sp)
+
+        # fn = lambda df: df.info(buf=sp)
         result = []
-        #import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         for row in self._partitions:
             for col in row:
                 result.append(col.apply(fn).get())
-        #import pdb; pdb.set_trace()
-        #print("pass")
+        # import pdb; pdb.set_trace()
+        # print("pass")
         return result
-        
 
     def _concat(self, axis, others, how, sort):
         """Concatenate this dataframe with one or more others.

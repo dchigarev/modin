@@ -109,30 +109,6 @@ def eval_insert(modin_df, pandas_df, **kwargs):
     )
 
 
-def eval_sideeffect(
-    modin_df, pandas_df, operation, sideeffect_container, comparator=None, **kwargs
-):
-    def default_comparator(val1, val2):
-        assert val1 == val2
-
-    if comparator is None:
-        comparator = default_comparator
-
-    md_container, pd_container = (
-        sideeffect_container(modin_df),
-        sideeffect_container(pandas_df),
-    )
-    eval_general(
-        modin_df,
-        pandas_df,
-        operation=operation,
-        comparator=lambda *args: True,
-        **kwargs,
-    )
-
-    comparator(md_container, pd_container)
-
-
 class TestDataFrameBinary:
     def inter_df_math_helper(self, modin_df, pandas_df, op):
         # Test dataframe to datframe
@@ -2369,8 +2345,8 @@ class TestDataFrameDefault:
                 null_counts=null_counts,
                 buf=lambda df: second if isinstance(df, pandas.DataFrame) else first,
             )
-            assert [s.rstrip() for s in first.getvalue().splitlines()[1:]] == [s.rstrip() for s in second.getvalue().splitlines()[1:]]
-
+            assert first.getvalue().splitlines()[1:] == second.getvalue().splitlines()[1:]
+            assert first.getvalue().splitlines()[0] == str(pd.DataFrame)
 
     def test_interpolate(self):
         data = test_data_values[0]
