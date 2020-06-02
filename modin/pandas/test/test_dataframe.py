@@ -2354,11 +2354,11 @@ class TestDataFrameDefault:
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
     @pytest.mark.parametrize("verbose", [None, True, False])
-    @pytest.mark.parametrize("max_cols", [-1, 0, 10, 99999999])
+    @pytest.mark.parametrize("max_cols", [10, 99999999])
     @pytest.mark.parametrize("memory_usage", [None, True, False, "deep"])
     @pytest.mark.parametrize("null_counts", [None, True, False])
     def test_info(self, data, verbose, max_cols, memory_usage, null_counts):
-        with io.StringIO(), io.StringIO() as first, second:
+        with io.StringIO() as first, io.StringIO() as second:
             eval_general(
                 pd.DataFrame(data),
                 pandas.DataFrame(data),
