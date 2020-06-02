@@ -22,6 +22,7 @@ from pandas.core.dtypes.common import (
 from pandas.core.indexes.api import ensure_index_from_sequences
 from pandas.core.indexing import check_bool_indexer
 from pandas.util._validators import validate_bool_kwarg
+from pandas.io.formats.printing import pprint_thing
 
 import itertools
 import functools
@@ -887,6 +888,8 @@ class DataFrame(BasePandasDataset):
         if max_cols is None:
             max_cols = 100
 
+        
+
         # self._default_to_pandas(
         #     pandas.DataFrame.info,
         #     verbose=verbose,
@@ -895,9 +898,15 @@ class DataFrame(BasePandasDataset):
         #     memory_usage=memory_usage,
         #     null_counts=null_counts,
         # )
-        
 
-        #cached values:
+        def put_str(src, output_len=None, spaces=2):
+            return str(src).ljust(output_len if output_len else len(str(src)))+" "*spaces
+
+        # cached values:
+        
+            
+
+
         def format_size(num):
             # returns size in human readable format
             for x in ["bytes", "KB", "MB", "GB", "TB"]:
@@ -908,41 +917,87 @@ class DataFrame(BasePandasDataset):
 
         output = []
 
-        header = """ #   Column  Non-Null Count  Dtype
----  ------  --------------  -----"""
         type_line = str(type(self))
         index_line = self.index._summary()
         columns = self.columns
+        columns_len = len(columns)
         non_null_count = self.count()
         dtypes = self.dtypes
-        
 
-        #data:
-        
+        if null_counts is None:
+            null_counts = (columns_len <= max_cols)
+
+        exceeds_info_cols = columns_len > max_cols
+
+
+        def get_header(spaces=2):
+            output = []
+            head_label = " # "
+            column_label = "Column"
+            null_label = "Non-Null Count"
+            dtype_label = "Dtype"
+            non_null_label = " non-null"
+            delimiter = "-"
+
+            lengths = {}
+            lengths["head"] = max(len(head_label), len(pprint_thing(len(columns))))
+            lengths["column"] = max(
+                len(column_label), max(len(pprint_thing(col)) for col in columns)
+            )
+            lengths["null"] = max(
+                len(null_label),
+                max(len(pprint_thing(x)) for x in non_null_count) + len(non_null_label),
+            )
+            lengths["dtype"] = max(
+                len(dtype_label), max(len(pprint_thing(dtype)) for dtype in dtypes)
+            )
+
+            header = put_str(head_label, lengths["head"]) + put_str(column_label, lengths["column"])
+            if null_counts:
+                header += put_str(null_label, lengths["null"])
+            header += put_str(dtype_label, lengths["dtype"])
+            output.append(header)
+
+            delimiters = put_str(delimiter*lengths["head"]) +put_str(delimiter*lengths["column"])
+            if null_counts:
+                delimiters += put_str(delimiter*lengths["null"])
+            delimiters += put_str(delimiter*lengths["dtype"])
+            output.append(delimiters)
+
+            return output, lengths
+        # data:
+
         dtypes_line = f"dtypes: {', '.join(['{}({})'.format(dtype, count) for dtype, count in dtypes.value_counts().items()])}"
-        
+
         output.extend([type_line, index_line])
 
         def verbose_repr(output):
             columns_line = f"Data columns (total {len(columns)} columns):"
-            output.extend([columns_line, header])
+            header, lengths = get_header()
+            output.extend([columns_line, *header])
             for i, col in enumerate(columns):
-                output.append(f" {i}\t{col}\t{non_null_count[col]} non-null\t{dtypes[col]}")
-        
+                to_append = put_str(" "+str(i), lengths["head"]) + put_str(col, lengths["column"])
+                if null_counts:
+                    to_append+= put_str(str(non_null_count[col]) + " non_null", lengths["null"])
+                to_append+=put_str(dtypes[col], lengths["dtype"])
+                output.append(to_append)
+                
+
         def non_verbose_repr(output):
             output.append(columns._summary(name="Columns"))
-
-
 
         if verbose:
             verbose_repr(output)
         elif verbose is False:
             non_verbose_repr(output)
         else:
-            verbose_repr(output)
+            if exceeds_info_cols:
+                non_verbose_repr(output)
+            else:
+                verbose_repr(output)
 
         output.append(dtypes_line)
-        
+
         if memory_usage is None:
             memory_usage = True
         if memory_usage:
