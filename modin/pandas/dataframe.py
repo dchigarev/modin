@@ -884,9 +884,6 @@ class DataFrame(BasePandasDataset):
         import io
         import re
 
-        if verbose is None:
-            verbose = True
-
         if max_cols is None:
             max_cols = 100
 
@@ -918,7 +915,7 @@ class DataFrame(BasePandasDataset):
         columns = self.columns
         non_null_count = self.count()
         dtypes = self.dtypes
-        mem_usage_bytes = self.memory_usage(index=True, deep=memory_usage).sum()
+        
 
         #data:
         
@@ -935,15 +932,23 @@ class DataFrame(BasePandasDataset):
         def non_verbose_repr(output):
             output.append(columns._summary(name="Columns"))
 
+
+
         if verbose:
             verbose_repr(output)
-        else:
+        elif verbose is None:
             non_verbose_repr(output)
 
         output.append(dtypes_line)
-        mem_line = f"memory usage: {format_size(mem_usage_bytes)}"
-        output.append(mem_line)
+        
+        if memory_usage is None:
+            memory_usage = True
+        if memory_usage:
+            memory_usage = bool(memory_usage)
 
+            mem_usage_bytes = self.memory_usage(index=True, deep=memory_usage).sum()
+            mem_line = f"memory usage: {format_size(mem_usage_bytes)}"
+            output.append(mem_line)
 
         buf.write("\n".join(output))
         # result = self._query_compiler.info(
