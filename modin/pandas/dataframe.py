@@ -575,7 +575,7 @@ class DataFrame(BasePandasDataset):
         layout=None,
         return_type=None,
         backend=None,
-        **kwargs
+        **kwargs,
     ):
         return to_pandas(self).boxplot(
             column=column,
@@ -588,7 +588,7 @@ class DataFrame(BasePandasDataset):
             layout=layout,
             return_type=return_type,
             backend=backend,
-            **kwargs
+            **kwargs,
         )
 
     def combine(self, other, func, fill_value=None, overwrite=True):
@@ -824,7 +824,7 @@ class DataFrame(BasePandasDataset):
         figsize=None,
         layout=None,
         bins=10,
-        **kwds
+        **kwds,
     ):  # pragma: no cover
         return self._default_to_pandas(
             pandas.DataFrame.hist,
@@ -841,7 +841,7 @@ class DataFrame(BasePandasDataset):
             figsize=figsize,
             layout=layout,
             bins=bins,
-            **kwds
+            **kwds,
         )
 
     def info(
@@ -882,29 +882,85 @@ class DataFrame(BasePandasDataset):
         # over the data
         buf = sys.stdout if not buf else buf
         import io
+        import re
 
-        self._query_compiler.info(
-            verbose=verbose,
-            buf=buf,
-            max_cols=max_cols,
-            memory_usage=memory_usage,
-            null_counts=null_counts,
-        )
+        # self._default_to_pandas(
+        #     pandas.DataFrame.info,
+        #     verbose=verbose,
+        #     buf=buf,
+        #     max_cols=max_cols,
+        #     memory_usage=memory_usage,
+        #     null_counts=null_counts,
+        # )
+        
 
-        #with io.StringIO() as tmp_buf:
-        #     self._default_to_pandas(
-        #         pandas.DataFrame.info,
-        #         verbose=verbose,
-        #         buf=tmp_buf,
-        #         max_cols=max_cols,
-        #         memory_usage=memory_usage,
-        #         null_counts=null_counts,
+        #cached values:
+        def _sizeof_fmt(num, size_qualifier):
+            # returns size in human readable format
+            for x in ["bytes", "KB", "MB", "GB", "TB"]:
+                if num < 1024.0:
+                    return f"{num:3.1f}{size_qualifier} {x}"
+                num /= 1024.0
+            return f"{num:3.1f}{size_qualifier} PB"
+
+        output = []
+
+        header = """ #   Column  Non-Null Count  Dtype
+---  ------  --------------  -----"""
+        type_line = str(type(self))
+        index_line = self.index._summary()
+        columns = self.columns
+        non_null_count = self.count()
+        dtypes = self.dtypes
+        mem_usage_bytes = self.memory_usage(index=True, deep=memory_usage).sum()
+
+        #data:
+        columns_line = f"Data columns (total {len(columns)} columns):"
+        dtypes_line = f"dtypes: {', '.join(['{}({})'.format(dtype, count) for dtype, count in dtypes.value_counts().items()])}"
+        
+        output.extend([type_line, index_line, columns_line, header])
+
+
+        for i, col in enumerate(columns):
+            output.append(f" {i}\t{col}\t{non_null_count[col]} non-null\t{dtypes[col]}")
+
+        output.append(dtypes_line)
+        mem_line = f"memory usage: {_sizeof_fmt(mem_usage_bytes, '')}"
+        output.append(mem_line)
+
+
+        buf.write("\n".join(output))
+        # result = self._query_compiler.info(
+        #     verbose=verbose,
+        #     buf=buf,
+        #     max_cols=max_cols,
+        #     memory_usage=memory_usage,
+        #     null_counts=null_counts,
+        # )
+
+        # glob_data = {}
+        # for entit in result:
+        #     data = entit.splitlines()[5:-2]
+        #     for line in data:
+        #         idx, col_name, non_null = re.sub(r"\s+", " ", line).split(" ")[1:4]
+        #         old_val = glob_data.get(col_name, {"idx": self.columns.get_loc(col_name), "non_null": 0})
+        #         glob_data.update(
+        #             {
+        #                 col_name: {
+        #                     "idx": old_val["idx"],
+        #                     "non_null": int(non_null) + old_val["non_null"],
+        #                 }
+        #             }
+        #         )
+        # print(glob_data)
+        # with io.StringIO() as tmp_buf:
+
+        #     #import pdb; pdb.set_trace()
+        #     result = tmp_buf.getvalue()
+        #     result = result.replace(
+        #         "pandas.core.frame.DataFrame", "modin.pandas.dataframe.DataFrame"
         #     )
-            # result = tmp_buf.getvalue()
-            # result = result.replace(
-            #     "pandas.core.frame.DataFrame", "modin.pandas.dataframe.DataFrame"
-            # )
-            # buf.write(result)
+        #     buf.write(result)
         return None
 
     def insert(self, loc, column, value, allow_duplicates=False):
@@ -970,7 +1026,7 @@ class DataFrame(BasePandasDataset):
         limit_direction="forward",
         limit_area=None,
         downcast=None,
-        **kwargs
+        **kwargs,
     ):
         return self._default_to_pandas(
             pandas.DataFrame.interpolate,
@@ -981,7 +1037,7 @@ class DataFrame(BasePandasDataset):
             limit_direction=limit_direction,
             limit_area=limit_area,
             downcast=downcast,
-            **kwargs
+            **kwargs,
         )
 
     def iterrows(self):
@@ -1398,7 +1454,7 @@ class DataFrame(BasePandasDataset):
         xerr=None,
         secondary_y=False,
         sort_columns=False,
-        **kwargs
+        **kwargs,
     ):
         return self._to_pandas().plot
 
@@ -1423,7 +1479,7 @@ class DataFrame(BasePandasDataset):
         level=None,
         numeric_only=None,
         min_count=0,
-        **kwargs
+        **kwargs,
     ):
         axis = self._get_axis_number(axis)
         new_index = self.columns if axis else self.index
@@ -1439,7 +1495,7 @@ class DataFrame(BasePandasDataset):
                     level=level,
                     numeric_only=numeric_only,
                     min_count=min_count,
-                    **kwargs
+                    **kwargs,
                 )
             )
         return super(DataFrame, self).prod(
@@ -1448,7 +1504,7 @@ class DataFrame(BasePandasDataset):
             level=level,
             numeric_only=numeric_only,
             min_count=min_count,
-            **kwargs
+            **kwargs,
         )
 
     product = prod
@@ -1748,7 +1804,7 @@ class DataFrame(BasePandasDataset):
         level=None,
         numeric_only=None,
         min_count=0,
-        **kwargs
+        **kwargs,
     ):
         axis = self._get_axis_number(axis)
         new_index = self.columns if axis else self.index
@@ -1762,7 +1818,7 @@ class DataFrame(BasePandasDataset):
             level=level,
             numeric_only=numeric_only,
             min_count=min_count,
-            **kwargs
+            **kwargs,
         )
 
     def to_feather(self, path):  # pragma: no cover
@@ -1855,7 +1911,7 @@ class DataFrame(BasePandasDataset):
         compression="snappy",
         index=None,
         partition_cols=None,
-        **kwargs
+        **kwargs,
     ):  # pragma: no cover
         return self._default_to_pandas(
             pandas.DataFrame.to_parquet,
@@ -1864,7 +1920,7 @@ class DataFrame(BasePandasDataset):
             compression=compression,
             index=index,
             partition_cols=partition_cols,
-            **kwargs
+            **kwargs,
         )
 
     def to_period(self, freq=None, axis=0, copy=True):  # pragma: no cover

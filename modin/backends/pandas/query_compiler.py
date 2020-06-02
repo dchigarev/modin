@@ -253,7 +253,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
     def info(
         self, verbose=None, buf=None, max_cols=None, memory_usage=None, null_counts=None
     ):
-        self._modin_frame.info(
+        return self._modin_frame.info(
             verbose=verbose,
             buf=buf,
             max_cols=max_cols,

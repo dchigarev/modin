@@ -2327,10 +2327,13 @@ class TestDataFrameDefault:
         with pytest.warns(UserWarning):
             pd.DataFrame(data).infer_objects()
 
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+    @pytest.mark.parametrize("verbose", [None, True, False])
+    @pytest.mark.parametrize("max_cols", [-1, 0, 10, 99999999])
+    @pytest.mark.parametrize("memory_usage", [None, True, False, "deep"])
+    @pytest.mark.parametrize("null_counts", [None, True, False])
     def test_info(self):
-        data = test_data_values[0]
-        with pytest.warns(UserWarning):
-            pd.DataFrame(data).info(memory_usage="deep")
+        pass
 
     def test_interpolate(self):
         data = test_data_values[0]
