@@ -845,7 +845,7 @@ class DataFrame(BasePandasDataset):
         )
 
     def info(
-        self, verbose=None, buf=None, max_cols=None, memory_usage=None, null_counts=None
+        self, verbose=True, buf=None, max_cols=100, memory_usage=None, null_counts=None
     ):
         """Print a concise summary of a DataFrame, which includes the index
         dtype and column dtypes, non-null values and memory usage.
@@ -895,13 +895,13 @@ class DataFrame(BasePandasDataset):
         
 
         #cached values:
-        def _sizeof_fmt(num, size_qualifier):
+        def format_size(num):
             # returns size in human readable format
             for x in ["bytes", "KB", "MB", "GB", "TB"]:
                 if num < 1024.0:
-                    return f"{num:3.1f}{size_qualifier} {x}"
+                    return f"{num:3.1f} {x}"
                 num /= 1024.0
-            return f"{num:3.1f}{size_qualifier} PB"
+            return f"{num:3.1f} PB"
 
         output = []
 
@@ -915,17 +915,27 @@ class DataFrame(BasePandasDataset):
         mem_usage_bytes = self.memory_usage(index=True, deep=memory_usage).sum()
 
         #data:
-        columns_line = f"Data columns (total {len(columns)} columns):"
+        
         dtypes_line = f"dtypes: {', '.join(['{}({})'.format(dtype, count) for dtype, count in dtypes.value_counts().items()])}"
         
-        output.extend([type_line, index_line, columns_line, header])
+        output.extend([type_line, index_line])
 
+        def verbose_repr(output):
+            columns_line = f"Data columns (total {len(columns)} columns):"
+            output.extend(columns_line, header)
+            for i, col in enumerate(columns):
+                output.append(f" {i}\t{col}\t{non_null_count[col]} non-null\t{dtypes[col]}")
+        
+        def non_verbose_repr(output):
+            output.append(columns._summary(name="Columns"))
 
-        for i, col in enumerate(columns):
-            output.append(f" {i}\t{col}\t{non_null_count[col]} non-null\t{dtypes[col]}")
+        if verbose:
+            verbose_repr(output)
+        else:
+            non_verbose_repr(output)
 
         output.append(dtypes_line)
-        mem_line = f"memory usage: {_sizeof_fmt(mem_usage_bytes, '')}"
+        mem_line = f"memory usage: {format_size(mem_usage_bytes)}"
         output.append(mem_line)
 
 
