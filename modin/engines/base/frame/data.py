@@ -447,6 +447,10 @@ class BasePandasFrame(object):
             row_numeric_idx=new_row_order, col_numeric_idx=new_col_order
         )
 
+
+    def _get_raw_pandas(self):
+        return [[obj.to_pandas() for obj in part] for part in self._partitions]
+
     def reorder_labels(self, row_numeric_idx=None, col_numeric_idx=None):
         """Reorder the column and or rows in this DataFrame.
 

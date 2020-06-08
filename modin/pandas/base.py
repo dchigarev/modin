@@ -309,6 +309,7 @@ class BasePandasDataset(object):
     def __constructor__(self, *args, **kwargs):
         return type(self)(*args, **kwargs)
 
+
     def abs(self):
         """Apply an absolute value function to all numeric columns.
 

@@ -236,6 +236,9 @@ class DataFrame(BasePandasDataset):
             subset=subset, keep=keep, inplace=inplace
         )
 
+    def _raw(self):
+        return self._query_compiler._get_raw_partitions()
+
     @property
     def dtypes(self):
         """Get the dtypes for this DataFrame.

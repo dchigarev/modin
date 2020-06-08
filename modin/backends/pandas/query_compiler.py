@@ -171,6 +171,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             pandas_op(self.to_pandas(), *args, **kwargs), type(self._modin_frame)
         )
 
+    def _get_raw_partitions(self):
+        return self._modin_frame._get_raw_pandas()
+
     def to_pandas(self):
         return self._modin_frame.to_pandas()
 
