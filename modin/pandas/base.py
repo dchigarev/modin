@@ -3379,6 +3379,9 @@ class BasePandasDataset(object):
         """
         return self.to_numpy()
 
+    def _convert(self, *args, **kwargs):
+        return self
+
     @property
     def __name__(self):
         return type(self).__name__

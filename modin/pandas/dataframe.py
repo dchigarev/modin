@@ -1392,7 +1392,8 @@ class DataFrame(BasePandasDataset):
         sort_columns=False,
         **kwargs
     ):
-        return self._to_pandas().plot
+        from pandas.plotting._core import PlotAccessor
+        return PlotAccessor(self)
 
     def pow(self, other, axis="columns", level=None, fill_value=None):
         if isinstance(other, Series):
