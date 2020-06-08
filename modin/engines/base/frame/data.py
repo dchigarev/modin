@@ -449,7 +449,13 @@ class BasePandasFrame(object):
 
 
     def _get_raw_pandas(self):
-        return [[obj.to_pandas() for obj in part] for part in self._partitions]
+        retrieved_objects = [[obj.to_pandas() for obj in part] for part in self._partitions]
+        df_rows = [
+            pandas.concat([part for part in row], axis=1)
+            for row in retrieved_objects
+            if not all(part.empty for part in row)
+        ]
+        return df_rows
 
     def reorder_labels(self, row_numeric_idx=None, col_numeric_idx=None):
         """Reorder the column and or rows in this DataFrame.
