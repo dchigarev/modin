@@ -292,9 +292,21 @@ class BaseFrameManager(object):
         num_splits = cls._compute_num_partitions()
         put_func = cls._partition_class.put
         row_chunksize, col_chunksize = compute_chunksize(df, num_splits)
+
+        # if DataFrame has one column and its dtype is categorical
+        # then iloc indexing works differently. See GH #1488 for more details
+        is_categorical_series = len(df.columns) == 1 and isinstance(
+            df.dtypes[0], pandas.CategoricalDtype
+        )
+
         parts = [
             [
-                put_func(df.iloc[i : i + row_chunksize, j : j + col_chunksize].copy())
+                put_func(
+                    df.iloc[
+                        i : i + row_chunksize,
+                        j : None if is_categorical_series else j + col_chunksize,
+                    ].copy()
+                )
                 for j in range(0, len(df.columns), col_chunksize)
             ]
             for i in range(0, len(df), row_chunksize)
