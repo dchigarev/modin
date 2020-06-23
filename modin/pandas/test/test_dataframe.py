@@ -2376,7 +2376,7 @@ class TestDataFrameDefault:
         with pytest.warns(UserWarning):
             pd.DataFrame(data).pct_change()
 
-    @pytest.mark.parametrize("data", test_data_values)
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
     @pytest.mark.parametrize("index", [lambda df: df.columns[0]])
     @pytest.mark.parametrize("columns", [lambda df: df.columns[len(df.columns) // 2]])
     @pytest.mark.parametrize(

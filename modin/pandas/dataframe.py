@@ -1562,7 +1562,11 @@ class DataFrame(BasePandasDataset):
                 indexed_qc.columns = values
             indexed = DataFrame(query_compiler=indexed_qc)
 
-        return indexed.unstack(columns)
+        unstacked = indexed.unstack(columns)
+        if isinstance(unstacked.columns, pandas.MultiIndex):
+            unstacked.columns = unstacked.columns.levels[1]
+
+        return unstacked
 
     def pivot_table(
         self,
