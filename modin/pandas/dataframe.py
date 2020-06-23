@@ -1536,6 +1536,7 @@ class DataFrame(BasePandasDataset):
             specified, all remaining columns will be used and the result will
             have hierarchically indexed columns.
         """
+        is_values_list_like = is_list_like(values)
         if values is None:
             append = index is None
             cols = [columns] if append else [index, columns]
@@ -1554,17 +1555,20 @@ class DataFrame(BasePandasDataset):
                 index = index._to_pandas()
 
             index = pandas.MultiIndex.from_arrays([index, self[columns]._to_pandas()])
-
-            indexed_qc = self._query_compiler.getitem_column_array([values])
+            if not is_values_list_like:
+                values = [values]
+            indexed_qc = self._query_compiler.getitem_column_array(values)
             indexed_qc.index = index
 
-            if is_list_like(values):
+            if is_values_list_like:
                 indexed_qc.columns = values
             indexed = DataFrame(query_compiler=indexed_qc)
 
+        
         unstacked = indexed.unstack(columns)
-        if isinstance(unstacked.columns, pandas.MultiIndex):
-            unstacked.columns = unstacked.columns.levels[1]
+        #breakpoint()
+        if not is_values_list_like and isinstance(unstacked.columns, pandas.MultiIndex):
+            unstacked.columns = unstacked.columns.get_level_values(1)
 
         return unstacked
 
