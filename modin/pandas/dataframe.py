@@ -1564,9 +1564,10 @@ class DataFrame(BasePandasDataset):
                 indexed_qc.columns = values
             indexed = DataFrame(query_compiler=indexed_qc)
 
-        
         unstacked = indexed.unstack(columns)
-        if len(indexed.columns) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
+        if len(indexed.columns) == 1 and isinstance(
+            unstacked.columns, pandas.MultiIndex
+        ):
             unstacked.columns = unstacked.columns.get_level_values(1)
 
         return unstacked
