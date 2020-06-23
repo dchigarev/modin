@@ -1554,17 +1554,20 @@ class DataFrame(BasePandasDataset):
                 index = index._to_pandas()
 
             index = pandas.MultiIndex.from_arrays([index, self[columns]._to_pandas()])
-
-            indexed_qc = self._query_compiler.getitem_column_array([values])
+            is_values_list_like = is_list_like(values)
+            if not is_values_list_like:
+                values = [values]
+            indexed_qc = self._query_compiler.getitem_column_array(values)
             indexed_qc.index = index
 
-            if is_list_like(values):
+            if is_values_list_like:
                 indexed_qc.columns = values
             indexed = DataFrame(query_compiler=indexed_qc)
 
+        
         unstacked = indexed.unstack(columns)
-        if isinstance(unstacked.columns, pandas.MultiIndex):
-            unstacked.columns = unstacked.columns.levels[1]
+        if len(indexed.columns) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
+            unstacked.columns = unstacked.columns.get_level_values(1)
 
         return unstacked
 
