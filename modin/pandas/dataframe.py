@@ -1553,7 +1553,7 @@ class DataFrame(BasePandasDataset):
             if hasattr(index, "_to_pandas"):
                 index = index._to_pandas()
 
-            index = pd.MultiIndex.from_arrays([index, self[columns]._to_pandas()])
+            index = pandas.MultiIndex.from_arrays([index, self[columns]._to_pandas()])
 
             indexed_qc = self._query_compiler.getitem_column_array([values])
             indexed_qc.index = index
