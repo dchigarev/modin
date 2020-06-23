@@ -1536,7 +1536,7 @@ class DataFrame(BasePandasDataset):
             specified, all remaining columns will be used and the result will
             have hierarchically indexed columns.
         """
-        is_values_list_like = is_list_like(values)
+        is_values_list_like = values is None or is_list_like(values)
         if values is None:
             append = index is None
             cols = [columns] if append else [index, columns]
