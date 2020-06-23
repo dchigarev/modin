@@ -1519,9 +1519,50 @@ class DataFrame(BasePandasDataset):
         )
 
     def pivot(self, index=None, columns=None, values=None):
-        return self._default_to_pandas(
-            pandas.DataFrame.pivot, index=index, columns=columns, values=values
-        )
+        """
+        Return reshaped DataFrame organized by given index / column values.
+        Reshape data (produce a "pivot" table) based on column values. Uses
+        unique values from specified `index` / `columns` to form axes of the
+        resulting DataFrame.
+        Parameters
+        ----------
+        index : str or object, optional
+            Column to use to make new frame's index. If None, uses
+            existing index.
+        columns : str or object
+            Column to use to make new frame's columns.
+        values : str, object or a list of the previous, optional
+            Column(s) to use for populating new frame's values. If not
+            specified, all remaining columns will be used and the result will
+            have hierarchically indexed columns.
+        """
+        if values is None:
+            append = index is None
+            cols = [columns] if append else [index, columns]
+            indexed = self.set_index(cols, append=append)
+        else:
+            if index is None:
+                index = self.index
+            else:
+                index = self[index]
+
+            # converting `index` and `self[columns]` to pandas, to avoid
+            # slow iteration on it inside `MultiIndex.from_arrays`
+            # TODO: test performance after solving #1598 and decide should we or not
+            # convert to pandas here.
+            if hasattr(index, "_to_pandas"):
+                index = index._to_pandas()
+
+            index = pandas.MultiIndex.from_arrays([index, self[columns]._to_pandas()])
+
+            indexed_qc = self._query_compiler.getitem_column_array([values])
+            indexed_qc.index = index
+
+            if is_list_like(values):
+                indexed_qc.columns = values
+            indexed = DataFrame(query_compiler=indexed_qc)
+
+        return indexed.unstack(columns)
 
     def pivot_table(
         self,
