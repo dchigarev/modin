@@ -1567,7 +1567,7 @@ class DataFrame(BasePandasDataset):
         
         unstacked = indexed.unstack(columns)
         #breakpoint()
-        if len(indexed.columns) > 1 and isinstance(unstacked.columns, pandas.MultiIndex):
+        if len(indexed.columns) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
             unstacked.columns = unstacked.columns.get_level_values(1)
 
         return unstacked
