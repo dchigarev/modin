@@ -69,7 +69,7 @@ def eval_general(modin_df, pandas_df, operation, comparator=df_equals, **kwargs)
         try:
             pd_result = fn(pandas_df, **pd_kwargs)
         except Exception as e:
-            with pytest.raises(type(e)):
+            with pytest.raises(Exception):
                 # repr to force materialization
                 repr(fn(modin_df, **md_kwargs))
         else:
