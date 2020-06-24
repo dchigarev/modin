@@ -1511,7 +1511,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         return unstacked
 
-
     # Daft implementation grabbed from #1649.
     # PLEASE DO NOT MERGE CURRENT PR (#1645) UNTIL THIS COMMENT WILL BE REMOVED
     def unstack(self, is_ser_out=False, is_ser_in=False, level=-1, fill_value=None):
