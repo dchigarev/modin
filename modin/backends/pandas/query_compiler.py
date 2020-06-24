@@ -1467,10 +1467,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
         def set_index(qc, index, append):
             return self.__constructor__(
                 qc._modin_frame._apply_full_axis(
-                    0, lambda df: df.set_index(index, append=append)
+                    1, lambda df: df.set_index(index, append=append)
                 )
             )
-
+        breakpoint()
         append = index is None
         new_index = [columns] if append else [index, columns]
         if values is None:
@@ -1480,7 +1480,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if not is_values_list_like:
                 values = [values]
             indexed_qc = self.getitem_column_array(values)
-            indexed_qc = set_index(indexed_qc, new_index, append)
+            reindexed = set_index(self, new_index, append)
+            indexed_qc.index = reindexed.index
 
             if is_values_list_like:
                 indexed_qc.columns = values
