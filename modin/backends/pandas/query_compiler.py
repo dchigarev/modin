@@ -1464,28 +1464,27 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return key
 
     def pivot(self, index, columns, values):
-        #breakpoint()
-        index, columns = map(self._get_values, [index, columns])
-        if values is None:
-            cols = [self.index, columns] if index is None else [index, columns]
-            self.index = pandas.MultiIndex.from_arrays(cols)
-            indexed_qc = self
-        else:
-            if index is None:
-                index = self.index
-
-            index = pandas.MultiIndex.from_arrays(
-                [index, columns]
+        def set_index(qc, index, append):
+            return self.__constructor__(
+                qc._modin_frame._apply_full_axis(
+                    0, lambda df: df.set_index(index, append=append)
+                )
             )
+
+        append = index is None
+        new_index = [columns] if append else [index, columns]
+        if values is None:
+            indexed_qc = set_index(self, new_index, append)
+        else:
             is_values_list_like = is_list_like(values)
             if not is_values_list_like:
                 values = [values]
             indexed_qc = self.getitem_column_array(values)
-            indexed_qc.index = index
+            indexed_qc = set_index(indexed_qc, new_index, append)
 
             if is_values_list_like:
                 indexed_qc.columns = values
-        breakpoint()
+
         unstacked = indexed_qc.unstack(level=columns)
         if len(indexed_qc.columns) == 1 and isinstance(
             unstacked.columns, pandas.MultiIndex
