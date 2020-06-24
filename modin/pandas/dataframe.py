@@ -1536,6 +1536,7 @@ class DataFrame(BasePandasDataset):
             specified, all remaining columns will be used and the result will
             have hierarchically indexed columns.
         """
+<<<<<<< HEAD
         if values is None:
             append = index is None
             cols = [columns] if append else [index, columns]
@@ -1571,6 +1572,13 @@ class DataFrame(BasePandasDataset):
             unstacked.columns = unstacked.columns.get_level_values(1)
 
         return unstacked
+=======
+        return self.__constructor__(
+            query_compiler=self._query_compiler.pivot(
+                index=index, columns=columns, values=values
+            )
+        )
+>>>>>>> pivot-implementation
 
     def pivot_table(
         self,
