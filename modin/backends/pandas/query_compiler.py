@@ -1457,6 +1457,77 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
+    def _get_values(self, key):
+        if isinstance(key, str):
+            if key in self.columns:
+                return self.getitem_column_array([key]).to_pandas().squeeze()
+        return key
+
+    def pivot(self, index, columns, values):
+        # Pandas pivot implementation raises KeyError with that conditions
+        if (
+            values is not None
+            and is_list_like(index)
+            and self.columns.isin(index).sum() != len(index)
+        ):
+            raise KeyError(f"None of [{index}] are in the [columns]")
+
+        def set_index(qc, index, append):
+            str_keys = [isinstance(key, str) for key in index]
+            # if some of the index values is actual 'index' (not column name)
+            # then we not be able to apply `set_index` and must do more slow way of reindex
+            if not all(str_keys):
+                new_index = qc._get_values(index)
+                new_qc = qc.copy()
+                new_qc.index = new_index
+                return new_qc.drop(columns=np.array(index)[str_keys])
+
+            return self.__constructor__(
+                qc._modin_frame._apply_full_axis(
+                    1, lambda df: df.set_index(index, append=append)
+                )
+            )
+
+        append = index is None
+        new_index = [columns] if append else [index, columns]
+        if values is None:
+            indexed_qc = set_index(self, new_index, append)
+        else:
+            is_values_list_like = is_list_like(values)
+            if not is_values_list_like:
+                values = [values]
+            indexed_qc = self.getitem_column_array(values)
+            reindexed = set_index(self, new_index, append)
+            indexed_qc.index = reindexed.index
+
+            if is_values_list_like:
+                indexed_qc.columns = values
+
+        unstacked = indexed_qc.unstack(level=columns)
+        if len(indexed_qc.columns) == 1 and isinstance(
+            unstacked.columns, pandas.MultiIndex
+        ):
+            unstacked.columns = unstacked.columns.get_level_values(1)
+
+        return unstacked
+
+
+    # Daft implementation grabbed from #1649.
+    # PLEASE DO NOT MERGE CURRENT PR (#1645) UNTIL THIS COMMENT WILL BE REMOVED
+    def unstack(self, is_ser_out=False, is_ser_in=False, level=-1, fill_value=None):
+        def map_func(df):
+            if is_ser_in:
+                df = df.squeeze()
+            return pandas.DataFrame(df.unstack(level=level, fill_value=fill_value))
+
+        new_columns = None
+        if is_ser_out:
+            new_columns = ["__reduced__"]
+        new_modin_frame = self._modin_frame._apply_full_axis(
+            axis=0, func=map_func, new_columns=new_columns
+        )
+        return self.__constructor__(new_modin_frame)
+
     # Get_dummies
     def get_dummies(self, columns, **kwargs):
         """Convert categorical variables to dummy variables for certain columns.

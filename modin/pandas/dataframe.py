@@ -1536,41 +1536,11 @@ class DataFrame(BasePandasDataset):
             specified, all remaining columns will be used and the result will
             have hierarchically indexed columns.
         """
-        if values is None:
-            append = index is None
-            cols = [columns] if append else [index, columns]
-            indexed = self.set_index(cols, append=append)
-        else:
-            if index is None:
-                index = self.index
-            else:
-                index = self[index]
-
-            # converting `index` and `self[columns]` to pandas, to avoid
-            # slow iteration on it inside `MultiIndex.from_arrays`
-            # TODO: test performance after solving #1598 and decide should we or not
-            # convert to pandas here.
-            if hasattr(index, "_to_pandas"):
-                index = index._to_pandas()
-
-            index = pandas.MultiIndex.from_arrays([index, self[columns]._to_pandas()])
-            is_values_list_like = is_list_like(values)
-            if not is_values_list_like:
-                values = [values]
-            indexed_qc = self._query_compiler.getitem_column_array(values)
-            indexed_qc.index = index
-
-            if is_values_list_like:
-                indexed_qc.columns = values
-            indexed = DataFrame(query_compiler=indexed_qc)
-
-        unstacked = indexed.unstack(columns)
-        if len(indexed.columns) == 1 and isinstance(
-            unstacked.columns, pandas.MultiIndex
-        ):
-            unstacked.columns = unstacked.columns.get_level_values(1)
-
-        return unstacked
+        return self.__constructor__(
+            query_compiler=self._query_compiler.pivot(
+                index=index, columns=columns, values=values
+            )
+        )
 
     def pivot_table(
         self,
