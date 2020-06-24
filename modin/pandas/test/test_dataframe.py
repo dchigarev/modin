@@ -2361,8 +2361,8 @@ class TestDataFrameDefault:
     def test_pivot(self, data, index, columns, values):
         md_df, pd_df = pd.DataFrame(data), pandas.DataFrame(data)
         eval_general(
-            pd_df,
             md_df,
+            pd_df,
             lambda df, *args, **kwargs: df.pivot(*args, **kwargs),
             index=index,
             columns=columns,

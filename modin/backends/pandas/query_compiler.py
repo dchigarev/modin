@@ -1485,6 +1485,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             raise KeyError(f"None of [{index}] are in the [columns]")
 
         def set_index(qc, index, append):
+            if any([key is None for key in index]):
+                raise KeyError(f"{None}")
+
             str_keys = [isinstance(key, str) for key in index]
             # if some of the index values is actual 'index' (not column name)
             # then we not be able to apply `set_index` and must do more slow way of reindex
@@ -1509,8 +1512,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if not is_values_list_like:
                 values = [values]
             indexed_qc = self.getitem_column_array(values)
-            reindexed = set_index(self, new_index, append)
-            indexed_qc.index = reindexed.index
+            indexed_qc.index = set_index(self, new_index, append).index
 
             if is_values_list_like:
                 indexed_qc.columns = values
