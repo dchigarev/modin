@@ -1466,11 +1466,14 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
-    def _get_values(self, key):
-        if isinstance(key, str):
-            if key in self.columns:
-                return self.getitem_column_array([key]).to_pandas().squeeze()
-        return key
+    def _get_values(self, keys):
+        result = []
+        for key in keys:
+            if isinstance(key, str) and key in self.columns:
+                result.append(self.getitem_column_array([key]).to_pandas().squeeze())
+            else:
+                result.append(key)
+        return result
 
     def pivot(self, index, columns, values):
         # Pandas pivot implementation raises KeyError with that conditions
