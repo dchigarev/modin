@@ -1457,20 +1457,32 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
-    def _get_values(self, key):
-        if isinstance(key, str):
-            if key in self.columns:
-                return self.getitem_column_array([key]).to_pandas().squeeze()
-        return key
+    def _get_values(self, keys):
+        result = []
+        for key in keys:
+            if isinstance(key, str) and key in self.columns:
+                result.append(self.getitem_column_array([key]).to_pandas().squeeze())
+            else:
+                result.append(key)
+        return result
 
     def pivot(self, index, columns, values):
         def set_index(qc, index, append):
+            str_keys = [isinstance(key, str) for key in index]
+            # if some of the index values is a actual 'index' (not column name)
+            # then we not be able to apply `set_index` and must do more slow way of reindex
+            if not all(str_keys):
+                new_index = qc._get_values(index)
+                new_qc = qc.copy()
+                new_qc.index = new_index
+                return new_qc.drop(columns=np.array(index)[str_keys])
+
             return self.__constructor__(
                 qc._modin_frame._apply_full_axis(
                     1, lambda df: df.set_index(index, append=append)
                 )
             )
-        #breakpoint()
+
         append = index is None
         new_index = [columns] if append else [index, columns]
         if values is None:
