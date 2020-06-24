@@ -1467,6 +1467,14 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return result
 
     def pivot(self, index, columns, values):
+        # Pandas pivot implementation raises KeyError with that conditions
+        if (
+            values is not None
+            and is_list_like(index)
+            and self.columns.isin(index).sum() != len(index)
+        ):
+            raise KeyError(f"None of [{index}] are in the [columns]")
+
         def set_index(qc, index, append):
             str_keys = [isinstance(key, str) for key in index]
             # if some of the index values is a actual 'index' (not column name)
