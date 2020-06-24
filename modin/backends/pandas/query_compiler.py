@@ -1457,6 +1457,57 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
+    def _get_values(self, key):
+        if isinstance(key, str):
+            if key in self.columns:
+                return self.getitem_column_array([key]).to_pandas().squeeze()
+        return key
+
+    def pivot(self, index, columns, values):
+        #breakpoint()
+        index, columns = map(self._get_values, [index, columns])
+        if values is None:
+            cols = [self.index, columns] if index is None else [index, columns]
+            self.index = pandas.MultiIndex.from_arrays(cols)
+            indexed_qc = self
+        else:
+            if index is None:
+                index = self.index
+
+            index = pandas.MultiIndex.from_arrays(
+                [index, columns]
+            )
+            is_values_list_like = is_list_like(values)
+            if not is_values_list_like:
+                values = [values]
+            indexed_qc = self.getitem_column_array(values)
+            indexed_qc.index = index
+
+            if is_values_list_like:
+                indexed_qc.columns = values
+        breakpoint()
+        unstacked = indexed_qc.unstack(level=columns)
+        if len(indexed_qc.columns) == 1 and isinstance(
+            unstacked.columns, pandas.MultiIndex
+        ):
+            unstacked.columns = unstacked.columns.get_level_values(1)
+
+        return unstacked
+
+    def unstack(self, is_ser_out=False, is_ser_in=False, level=-1, fill_value=None):
+        def map_func(df):
+            if is_ser_in:
+                df = df.squeeze()
+            return pandas.DataFrame(df.unstack(level=level, fill_value=fill_value))
+
+        new_columns = None
+        if is_ser_out:
+            new_columns = ["__reduced__"]
+        new_modin_frame = self._modin_frame._apply_full_axis(
+            axis=0, func=map_func, new_columns=new_columns
+        )
+        return self.__constructor__(new_modin_frame)
+
     # Get_dummies
     def get_dummies(self, columns, **kwargs):
         """Convert categorical variables to dummy variables for certain columns.
