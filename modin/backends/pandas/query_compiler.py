@@ -1470,7 +1470,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                     1, lambda df: df.set_index(index, append=append)
                 )
             )
-        breakpoint()
+        #breakpoint()
         append = index is None
         new_index = [columns] if append else [index, columns]
         if values is None:
