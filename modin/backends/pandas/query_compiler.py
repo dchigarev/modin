@@ -1585,6 +1585,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
+    def pivot_table(self, *args, **kwargs):
+        mf = self._modin_frame._apply_full_axis(
+            0, lambda df: df.pivot_table(*args, **kwargs)
+        )
+        return self.__constructor__(mf)
+
     # Get_dummies
     def get_dummies(self, columns, **kwargs):
         """Convert categorical variables to dummy variables for certain columns.

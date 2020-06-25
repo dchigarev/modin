@@ -1588,16 +1588,18 @@ class DataFrame(BasePandasDataset):
         margins_name="All",
         observed=False,
     ):
-        return self._default_to_pandas(
-            pandas.DataFrame.pivot_table,
-            values=values,
-            index=index,
-            columns=columns,
-            aggfunc=aggfunc,
-            fill_value=fill_value,
-            margins=margins,
-            dropna=dropna,
-            margins_name=margins_name,
+        return self.__constructor__(
+            query_compiler=self._query_compiler.pivot_table(
+                values=values,
+                index=index,
+                columns=columns,
+                aggfunc=aggfunc,
+                fill_value=fill_value,
+                margins=margins,
+                dropna=dropna,
+                margins_name=margins_name,
+                observed=observed,
+            )
         )
 
     @property
