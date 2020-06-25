@@ -1118,6 +1118,21 @@ class BaseQueryCompiler(abc.ABC):
     # END Manual Partitioning methods
 
     @abc.abstractmethod
+    def pivot_table(
+        self,
+        values,
+        index,
+        columns,
+        aggfunc,
+        fill_value,
+        margins,
+        dropna,
+        margins_name,
+        observed,
+    ):
+        pass
+
+    @abc.abstractmethod
     def get_dummies(self, columns, **kwargs):
         """Convert categorical variables to dummy variables for certain columns.
 

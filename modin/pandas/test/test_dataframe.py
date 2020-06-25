@@ -2360,28 +2360,51 @@ class TestDataFrameDefault:
         with pytest.warns(UserWarning):
             df.pivot(index="foo", columns="bar", values="baz")
 
-    def test_pivot_table(self):
-        df = pd.DataFrame(
-            {
-                "A": ["foo", "foo", "foo", "foo", "foo", "bar", "bar", "bar", "bar"],
-                "B": ["one", "one", "one", "two", "two", "one", "one", "two", "two"],
-                "C": [
-                    "small",
-                    "large",
-                    "large",
-                    "small",
-                    "small",
-                    "large",
-                    "small",
-                    "small",
-                    "large",
-                ],
-                "D": [1, 2, 2, 3, 3, 4, 5, 6, 7],
-                "E": [2, 4, 5, 5, 6, 6, 8, 9, 9],
-            }
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+    @pytest.mark.parametrize(
+        "index",
+        [
+            lambda df: df.columns[0],
+            lambda df: [*df.columns[0:2], *df.columns[-7:-4]],
+            lambda df: df[df.columns[0]].values,
+            None,
+        ],
+    )
+    @pytest.mark.parametrize(
+        "columns",
+        [
+            lambda df: df.columns[len(df.columns) // 2],
+            lambda df: [
+                *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
+                df.columns[-7],
+            ],
+            None,
+        ],
+    )
+    @pytest.mark.parametrize(
+        "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
+    )
+    @pytest.mark.parameterize(
+        "aggfunc",
+        [
+            ["mean", "sum"],
+            lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"},
+            None,
+        ],
+    )
+    @pytest.mark.parameterize("dropna", [True, False])
+    @pytest.mark.parameterize("observed", [True, False])
+    def test_pivot_table(self, data, index, columns, values, aggfunc, dropna, observed):
+        eval_general(
+            *create_test_dfs(data),
+            operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
+            index=index,
+            columns=columns,
+            values=values,
+            aggfunc=aggfunc,
+            dropna=dropna,
+            observed=observed,
         )
-        with pytest.warns(UserWarning):
-            df.pivot_table(values="D", index=["A", "B"], columns=["C"], aggfunc=np.sum)
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
     def test_plot(self, request, data):
