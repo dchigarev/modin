@@ -1587,8 +1587,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     def pivot_table(self, *args, **kwargs):
         mf = self._modin_frame._apply_full_axis(
-            0, lambda df: df.pivot_table(*args, **kwargs)
+            1, lambda df: df.pivot_table(*args, **kwargs)
         )
+        breakpoint()
         return self.__constructor__(mf)
 
     # Get_dummies
