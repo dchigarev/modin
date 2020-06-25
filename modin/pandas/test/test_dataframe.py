@@ -2384,7 +2384,7 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize(
         "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
     )
-    @pytest.mark.parameterize(
+    @pytest.mark.parametrize(
         "aggfunc",
         [
             ["mean", "sum"],
@@ -2392,8 +2392,8 @@ class TestDataFrameDefault:
             None,
         ],
     )
-    @pytest.mark.parameterize("dropna", [True, False])
-    @pytest.mark.parameterize("observed", [True, False])
+    @pytest.mark.parametrize("dropna", [True, False])
+    @pytest.mark.parametrize("observed", [True, False])
     def test_pivot_table(self, data, index, columns, values, aggfunc, dropna, observed):
         eval_general(
             *create_test_dfs(data),
