@@ -1585,12 +1585,59 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
-    def pivot_table(self, *args, **kwargs):
-        mf = self._modin_frame._apply_full_axis(
-            1, lambda df: df.pivot_table(*args, **kwargs)
+    def pivot_table(self, **kwargs):
+
+        broken_modin_frame = self._modin_frame._apply_full_axis(
+            axis=1, func=lambda df: df.pivot_table(**kwargs)
         )
-        breakpoint()
-        return self.__constructor__(mf)
+
+        new_parts = np.array(
+            [np.block([row for row in broken_modin_frame._partitions])]
+        )
+        new_columns = broken_modin_frame._frame_mgr_cls.get_indices(
+            1, new_parts, lambda df: df.columns
+        )
+        new_index = broken_modin_frame._frame_mgr_cls.get_indices(
+            0, new_parts, lambda df: df.index
+        )
+
+        new_mf = broken_modin_frame.__constructor__(new_parts, new_index, new_columns)
+        new_mf = new_mf._apply_full_axis(
+            0,
+            lambda df: df,
+            keep_partitioning=False,
+            new_index=new_index,
+            new_columns=new_columns,
+        )
+        new_mf = new_mf._apply_full_axis(
+            1,
+            lambda df: df,
+            keep_partitioning=False,
+            new_index=new_index,
+            new_columns=new_columns,
+        )
+
+        qc = self.__constructor__(new_mf)
+        if kwargs["dropna"]:
+            return qc.dropna(axis=1, how="all")
+
+        raise NotImplementedError(
+            "pivot_table with `dropna=False` is not implemented for now."
+        )
+
+        # splits = len(qc._modin_frame._partitions)
+        # all_len = len(qc.index)
+        # step = all_len // splits
+        # concaters = []
+        # for i in range(step):
+        #     new_qc = qc.getitem_row_array([i + j for j in range(0, all_len, step)]).apply(
+        #         axis=0, func=kwargs.get("func", np.mean)
+        #     )
+        #     concaters.append(new_qc)
+        # breakpoint()
+        # result_qc = concaters[0].concat(axis=0, other=concaters[1:])
+        # result_qc.index = qc.getitem_row_array([i for i in range(step)]).index
+        return
 
     # Get_dummies
     def get_dummies(self, columns, **kwargs):
