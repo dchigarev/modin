@@ -1561,9 +1561,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # END Manual Partitioning methods
 
     def pivot_table(self, **kwargs):
-
+        is_dropna = kwargs.pop("dropna")
         broken_modin_frame = self._modin_frame._apply_full_axis(
-            axis=1, func=lambda df: df.pivot_table(**kwargs)
+            axis=1, func=lambda df: df.pivot_table(dropna=False, **kwargs)
         )
 
         new_parts = np.array(
@@ -1593,7 +1593,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         )
 
         qc = self.__constructor__(new_mf)
-        if kwargs["dropna"]:
+        if is_dropna:
             return qc.dropna(axis=1, how="all")
 
         raise NotImplementedError(
