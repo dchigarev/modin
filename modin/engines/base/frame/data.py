@@ -931,7 +931,13 @@ class BasePandasFrame(object):
         )
 
     def _apply_full_axis(
-        self, axis, func, new_index=None, new_columns=None, dtypes=None
+        self,
+        axis,
+        func,
+        new_index=None,
+        new_columns=None,
+        dtypes=None,
+        keep_partitioning=True,
     ):
         """Perform a function across an entire axis.
 
@@ -955,7 +961,7 @@ class BasePandasFrame(object):
             axis,
             self._partitions,
             self._build_mapreduce_func(axis, func),
-            keep_partitioning=True,
+            keep_partitioning=keep_partitioning,
         )
         # Index objects for new object creation. This is shorter than if..else
         if new_columns is None:
