@@ -1596,6 +1596,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 "pivot_table with `dropna=False` is not implemented for now."
             )
 
+        if index is None or columns is None:
+            raise NotImplementedError(
+                "pivot_table with None index or column is not implemented for now."
+            )
+
         from pandas.core.reshape.pivot import _convert_by
 
         def __convert_by(by):
@@ -1647,97 +1652,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if len(index) == 0 and len(columns) > 0:
             unstacked = unstacked.transpose()
-            # losing proper index, dirty fix ahead, more investigations needed
-            #unstacked.index = 
         
         if dropna:
             unstacked = unstacked.dropna(axis=1, how="all")
 
         return unstacked
 
-        def is_modin_frame_consistent(mf):
-            get_indices = mf._frame_mgr_cls.get_indices
-            indices = []
-            for row in mf._partitions:
-                indices.append(
-                    get_indices(
-                        axis=1,
-                        partitions=np.array([row]),
-                        index_func=lambda df: df.columns,
-                    )
-                )
-            for i in range(len(indices)):
-                for j in range(i + 1, len(indices)):
-                    if not all(indices[i] == indices[j]):
-                        return False
-            return True
-
-        is_dropna = kwargs.pop("dropna")
-        broken_modin_frame = self._modin_frame._apply_full_axis(
-            axis=1, func=lambda df: df.pivot_table(dropna=False, **kwargs)
-        )
-
-        if is_modin_frame_consistent(broken_modin_frame):
-            mf = broken_modin_frame
-            mf_index = mf.index
-            dupl = mf_index.duplicated()
-            if not any(dupl):
-                return self.__constructor__(mf)
-
-            duplicated_indices = mf_index[dupl].unique()
-
-        else:
-            raise NotImplementedError("That case is not implemented for now.")
-            new_parts = np.array(
-                [np.block([row for row in broken_modin_frame._partitions])]
-            )
-            new_columns = broken_modin_frame._frame_mgr_cls.get_indices(
-                1, new_parts, lambda df: df.columns
-            )
-            new_index = broken_modin_frame._frame_mgr_cls.get_indices(
-                0, new_parts, lambda df: df.index
-            )
-
-            new_mf = broken_modin_frame.__constructor__(
-                new_parts, new_index, new_columns
-            )
-            new_mf = new_mf._apply_full_axis(
-                0,
-                lambda df: df,
-                keep_partitioning=False,
-                new_index=new_index,
-                new_columns=new_columns,
-            )
-            new_mf = new_mf._apply_full_axis(
-                1,
-                lambda df: df,
-                keep_partitioning=False,
-                new_index=new_index,
-                new_columns=new_columns,
-            )
-
-            qc = self.__constructor__(new_mf)
-            return qc
-            if is_dropna:
-                return qc.dropna(axis=1, how="all")
-
-            raise NotImplementedError(
-                "pivot_table with `dropna=False` is not implemented for now."
-            )
-
-        # splits = len(qc._modin_frame._partitions)
-        # all_len = len(qc.index)
-        # step = all_len // splits
-        # concaters = []
-        # for i in range(step):
-        #     new_qc = qc.getitem_row_array([i + j for j in range(0, all_len, step)]).apply(
-        #         axis=0, func=kwargs.get("func", np.mean)
-        #     )
-        #     concaters.append(new_qc)
-        # breakpoint()
-        # result_qc = concaters[0].concat(axis=0, other=concaters[1:])
-        # result_qc.index = qc.getitem_row_array([i for i in range(step)]).index
-        return
 
     # Daft implementation grabbed from #1649.
     # PLEASE DO NOT MERGE CURRENT PR UNTIL THIS COMMENT WILL BE REMOVED
