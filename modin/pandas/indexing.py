@@ -213,7 +213,6 @@ class _LocIndexer(_LocationIndexerBase):
     """An indexer for modin_df.loc[] functionality"""
 
     def __getitem__(self, key):
-        breakpoint()
         row_loc, col_loc, ndim, self.row_scaler, self.col_scaler = _parse_tuple(key)
         if isinstance(row_loc, slice) and row_loc == slice(None):
             # If we're only slicing columns, handle the case with `__getitem__`
