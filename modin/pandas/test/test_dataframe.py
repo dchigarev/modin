@@ -2413,9 +2413,9 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize(
         "aggfunc",
         [
-            ["mean", "sum"],
-            lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"},
-            None,
+            #["mean", "sum"],
+            #lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"},
+            np.mean,
         ],
     )
     @pytest.mark.parametrize("dropna", [True])

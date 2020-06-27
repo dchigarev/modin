@@ -1581,7 +1581,7 @@ class DataFrame(BasePandasDataset):
         values=None,
         index=None,
         columns=None,
-        aggfunc="mean",
+        aggfunc=np.mean,
         fill_value=None,
         margins=False,
         dropna=True,
