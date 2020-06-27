@@ -1603,7 +1603,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns, values = map(_convert_by, [index, columns, values])
+        index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
 
         if len(values):
