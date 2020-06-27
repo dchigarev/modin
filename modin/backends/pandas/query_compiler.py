@@ -1663,7 +1663,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         # that line means agged.unstack(level=columns), we must translate
         # level names to its indices, because sometimes index may contain
         # duplicated level names
-        unstacked = agged.unstack(level=np.arange(len(index), len(keys)))
+        unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
 
         if len(values) == 1 and isinstance(
             unstacked.columns, pandas.MultiIndex
