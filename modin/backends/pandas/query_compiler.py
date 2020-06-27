@@ -1661,6 +1661,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
         ):
             unstacked.columns = unstacked.columns.droplevel(0)
 
+        if len(index) == 0 and len(columns) > 0:
+            unstacked = unstacked.transpose()
+
         return unstacked
 
         def is_modin_frame_consistent(mf):
