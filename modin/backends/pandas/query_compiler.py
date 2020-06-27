@@ -1647,7 +1647,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             #unstacked.index = 
         
         if dropna:
-            unstacked.dropna(axis=1, how="all")
+            unstacked = unstacked.dropna(axis=1, how="all")
 
         return unstacked
 
