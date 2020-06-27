@@ -2392,8 +2392,8 @@ class TestDataFrameDefault:
         [
             lambda df: df.columns[0],
             lambda df: [*df.columns[0:2], *df.columns[-7:-4]],
-            #lambda df: df[df.columns[0]].values,
-            #None,
+            # lambda df: df[df.columns[0]].values,
+            # None,
         ],
     )
     @pytest.mark.parametrize(
@@ -2404,7 +2404,7 @@ class TestDataFrameDefault:
                 *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
                 df.columns[-7],
             ],
-            #None,
+            # None,
         ],
     )
     @pytest.mark.parametrize(
@@ -2413,8 +2413,8 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize(
         "aggfunc",
         [
-            #["mean", "sum"],
-            #lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"},
+            # ["mean", "sum"],
+            # lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"},
             lambda df: np.mean,
         ],
     )

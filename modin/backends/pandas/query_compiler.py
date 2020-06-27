@@ -1611,12 +1611,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 "pivot_table with multiple aggregation functions is not implemented for now."
             )
 
-        if margins == True:
+        if margins is True:
             raise NotImplementedError(
                 "pivot_table with `margins=True` is not implemented for now."
             )
 
-        if dropna == False:
+        if dropna is False:
             raise NotImplementedError(
                 "pivot_table with `dropna=False` is not implemented for now."
             )
@@ -1670,19 +1670,16 @@ class PandasQueryCompiler(BaseQueryCompiler):
         # duplicated level names
         unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
 
-        if len(values) == 1 and isinstance(
-            unstacked.columns, pandas.MultiIndex
-        ):
+        if len(values) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
             unstacked.columns = unstacked.columns.droplevel(0)
 
         if len(index) == 0 and len(columns) > 0:
             unstacked = unstacked.transpose()
-        
+
         if dropna:
             unstacked = unstacked.dropna(axis=1, how="all")
 
         return unstacked
-
 
     # Daft implementation grabbed from #1649.
     # PLEASE DO NOT MERGE CURRENT PR UNTIL THIS COMMENT WILL BE REMOVED
