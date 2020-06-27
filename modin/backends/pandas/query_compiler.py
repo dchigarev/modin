@@ -1598,6 +1598,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         from pandas.core.reshape.pivot import _convert_by
 
+        def __convert_by(by):
+            if isinstance(by, pandas.Index):
+                return list(by)
+            return _convert_by(by)
+
         index, columns, values = map(_convert_by, [index, columns, values])
         keys = index + columns
 
