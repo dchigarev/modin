@@ -1670,6 +1670,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             unstacked = unstacked.transpose()
             # losing proper index, dirty fix ahead, more investigations needed
             #unstacked.index = 
+        
+        if dropna:
+            unstacked.dropna(axis=1, how="all")
 
         return unstacked
 
