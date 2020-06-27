@@ -1614,8 +1614,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         indices_to_reaggregate = agged.index[agged.index.duplicated()].unique()
         reaggregated_rows = []
-        for index in indices_to_reaggregate:
-            numeric_idx = agged.index.get_indexer_for([index])
+        for _index in indices_to_reaggregate:
+            numeric_idx = agged.index.get_indexer_for([_index])
             row = agged.getitem_row_array(numeric_idx)
             reaggregated_row = row.apply(axis=0, func=aggfunc)
             reaggregated_row.index = row.index.unique()
@@ -1638,6 +1638,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if len(index) == 0 and len(columns) > 0:
             unstacked = unstacked.transpose()
+            # losing proper index, dirty fix ahead, more investigations needed
+            #unstacked.index = 
 
         return unstacked
 
