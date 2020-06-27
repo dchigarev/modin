@@ -1160,10 +1160,19 @@ class PandasQueryCompiler(BaseQueryCompiler):
             ascending = False
         kwargs["ascending"] = ascending
         if axis:
-            new_columns = pandas.Series(self.columns).sort_values(**kwargs)
+            # pandas.Series raises `NotImplementedError` when trying to constructs from
+            # MultiIndex, if that happends, then new_columns/new_index should be computed
+            # inside `_apply_full_axis`
+            try:
+                new_columns = pandas.Series(self.columns).sort_values(**kwargs)
+            except NotImplementedError:
+                new_columns = None
             new_index = self.index
         else:
-            new_index = pandas.Series(self.index).sort_values(**kwargs)
+            try:
+                new_index = pandas.Series(self.index).sort_values(**kwargs)
+            except NotImplementedError:
+                new_index = None
             new_columns = self.columns
         new_modin_frame = self._modin_frame._apply_full_axis(
             axis,
@@ -1560,45 +1569,144 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
-    def pivot_table(self, **kwargs):
+    def pivot_table(
+        self,
+        values,
+        index,
+        columns,
+        aggfunc,
+        fill_value,
+        margins,
+        dropna,
+        margins_name,
+        observed,
+    ):
+        if not callable(aggfunc) and not isinstance(aggfunc, str):
+            raise NotImplementedError(
+                "pivot_table with multiple aggregation functions is not implemented for now."
+            )
+
+        if margins == True:
+            raise NotImplementedError(
+                "pivot_table with `margins=True` is not implemented for now."
+            )
+
+        if dropna == False:
+            raise NotImplementedError(
+                "pivot_table with `dropna=False` is not implemented for now."
+            )
+
+        from pandas.core.reshape.pivot import _convert_by
+
+        index, columns, values = map(_convert_by, [index, columns, values])
+        keys = index + columns
+
+        if len(values):
+            to_group = self.getitem_column_array(keys + values)
+        else:
+            to_group = self
+
+        agged = self.__constructor__(
+            to_group._modin_frame._apply_full_axis(
+                1, lambda df: df.groupby(keys, observed=observed).agg(aggfunc)
+            )
+        )
+
+        indices_to_reaggregate = agged.index[agged.index.duplicated()].unique()
+        reaggregated_rows = []
+        for index in indices_to_reaggregate:
+            numeric_idx = agged.index.get_indexer_for([index])
+            row = agged.getitem_row_array(numeric_idx)
+            reaggregated_row = row.apply(axis=0, func=aggfunc)
+            reaggregated_row.index = row.index.unique()
+            reaggregated_rows.append(reaggregated_row)
+
+        agged = (
+            agged.drop(index=indices_to_reaggregate)
+            .concat(axis=0, other=reaggregated_rows)
+            .sort_index()
+        )
+
+        if dropna:
+            agged = agged.dropna(how="all")
+
+        unstacked = agged.unstack(level=columns)
+        if len(values) == 1 and isinstance(
+            unstacked.columns, pandas.MultiIndex
+        ):
+            unstacked.columns = unstacked.columns.droplevel(0)
+
+        return unstacked
+
+        def is_modin_frame_consistent(mf):
+            get_indices = mf._frame_mgr_cls.get_indices
+            indices = []
+            for row in mf._partitions:
+                indices.append(
+                    get_indices(
+                        axis=1,
+                        partitions=np.array([row]),
+                        index_func=lambda df: df.columns,
+                    )
+                )
+            for i in range(len(indices)):
+                for j in range(i + 1, len(indices)):
+                    if not all(indices[i] == indices[j]):
+                        return False
+            return True
+
         is_dropna = kwargs.pop("dropna")
         broken_modin_frame = self._modin_frame._apply_full_axis(
             axis=1, func=lambda df: df.pivot_table(dropna=False, **kwargs)
         )
 
-        new_parts = np.array(
-            [np.block([row for row in broken_modin_frame._partitions])]
-        )
-        new_columns = broken_modin_frame._frame_mgr_cls.get_indices(
-            1, new_parts, lambda df: df.columns
-        )
-        new_index = broken_modin_frame._frame_mgr_cls.get_indices(
-            0, new_parts, lambda df: df.index
-        )
+        if is_modin_frame_consistent(broken_modin_frame):
+            mf = broken_modin_frame
+            mf_index = mf.index
+            dupl = mf_index.duplicated()
+            if not any(dupl):
+                return self.__constructor__(mf)
 
-        new_mf = broken_modin_frame.__constructor__(new_parts, new_index, new_columns)
-        new_mf = new_mf._apply_full_axis(
-            0,
-            lambda df: df,
-            keep_partitioning=False,
-            new_index=new_index,
-            new_columns=new_columns,
-        )
-        new_mf = new_mf._apply_full_axis(
-            1,
-            lambda df: df,
-            keep_partitioning=False,
-            new_index=new_index,
-            new_columns=new_columns,
-        )
+            duplicated_indices = mf_index[dupl].unique()
 
-        qc = self.__constructor__(new_mf)
-        if is_dropna:
-            return qc.dropna(axis=1, how="all")
+        else:
+            raise NotImplementedError("That case is not implemented for now.")
+            new_parts = np.array(
+                [np.block([row for row in broken_modin_frame._partitions])]
+            )
+            new_columns = broken_modin_frame._frame_mgr_cls.get_indices(
+                1, new_parts, lambda df: df.columns
+            )
+            new_index = broken_modin_frame._frame_mgr_cls.get_indices(
+                0, new_parts, lambda df: df.index
+            )
 
-        raise NotImplementedError(
-            "pivot_table with `dropna=False` is not implemented for now."
-        )
+            new_mf = broken_modin_frame.__constructor__(
+                new_parts, new_index, new_columns
+            )
+            new_mf = new_mf._apply_full_axis(
+                0,
+                lambda df: df,
+                keep_partitioning=False,
+                new_index=new_index,
+                new_columns=new_columns,
+            )
+            new_mf = new_mf._apply_full_axis(
+                1,
+                lambda df: df,
+                keep_partitioning=False,
+                new_index=new_index,
+                new_columns=new_columns,
+            )
+
+            qc = self.__constructor__(new_mf)
+            return qc
+            if is_dropna:
+                return qc.dropna(axis=1, how="all")
+
+            raise NotImplementedError(
+                "pivot_table with `dropna=False` is not implemented for now."
+            )
 
         # splits = len(qc._modin_frame._partitions)
         # all_len = len(qc.index)
@@ -1613,6 +1721,22 @@ class PandasQueryCompiler(BaseQueryCompiler):
         # result_qc = concaters[0].concat(axis=0, other=concaters[1:])
         # result_qc.index = qc.getitem_row_array([i for i in range(step)]).index
         return
+
+    # Daft implementation grabbed from #1649.
+    # PLEASE DO NOT MERGE CURRENT PR UNTIL THIS COMMENT WILL BE REMOVED
+    def unstack(self, is_ser_out=False, is_ser_in=False, level=-1, fill_value=None):
+        def map_func(df):
+            if is_ser_in:
+                df = df.squeeze()
+            return pandas.DataFrame(df.unstack(level=level, fill_value=fill_value))
+
+        new_columns = None
+        if is_ser_out:
+            new_columns = ["__reduced__"]
+        new_modin_frame = self._modin_frame._apply_full_axis(
+            axis=0, func=map_func, new_columns=new_columns
+        )
+        return self.__constructor__(new_modin_frame)
 
     # Get_dummies
     def get_dummies(self, columns, **kwargs):
