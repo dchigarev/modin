@@ -2378,7 +2378,7 @@ class TestDataFrameDefault:
                 *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
                 df.columns[-7],
             ],
-            None,
+            #None,
         ],
     )
     @pytest.mark.parametrize(
