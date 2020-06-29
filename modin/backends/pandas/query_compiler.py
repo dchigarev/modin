@@ -1603,11 +1603,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-<<<<<<< HEAD
-        index, columns= map(__convert_by, [index, columns])
-=======
         index, columns = map(__convert_by, [index, columns])
->>>>>>> pivot-table
         keys = index + columns
 
         # if columns from `keys` has NaN values
