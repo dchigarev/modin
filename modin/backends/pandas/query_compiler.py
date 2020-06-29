@@ -1571,7 +1571,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
     def multi_groupby_agg_emulator(self, by, func):
         from itertools import chain
 
-        subset = self.getitem_column_array(by)
+        subset = self.getitem_column_array(np.unique(by))
         subset = subset.insert(
             loc=len(subset.columns),
             column="__index__",
