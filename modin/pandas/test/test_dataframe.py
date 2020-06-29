@@ -2365,7 +2365,7 @@ class TestDataFrameDefault:
         "index",
         [
             lambda df: df.columns[0],
-            lambda df: [*df.columns[0:2], *df.columns[-7:-4]],
+            #lambda df: [*df.columns[0:2], *df.columns[-7:-4]],
             # lambda df: df[df.columns[0]].values,
             # None,
         ],
@@ -2374,15 +2374,15 @@ class TestDataFrameDefault:
         "columns",
         [
             lambda df: df.columns[len(df.columns) // 2],
-            lambda df: [
-                *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
-                df.columns[-7],
-            ],
+            # lambda df: [
+            #     *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
+            #     df.columns[-7],
+            # ],
             # None,
         ],
     )
     @pytest.mark.parametrize(
-        "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
+        "values", [lambda df: df.columns[-1]]#, lambda df: df.columns[-3:-1], None]
     )
     @pytest.mark.parametrize(
         "aggfunc",
