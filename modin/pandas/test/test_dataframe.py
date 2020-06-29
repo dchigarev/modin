@@ -2433,7 +2433,7 @@ class TestDataFrameDefault:
                 "F": [
                     np.datetime64(f"2013-0{i}-{j}")
                     for i in range(1, 7)
-                    for j in range(10, 17)
+                    for j in range(10, 14)
                 ],
             }
         eval_general(
