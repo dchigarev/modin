@@ -1591,10 +1591,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 "pivot_table with `margins=True` is not implemented for now."
             )
 
-        if index is None or columns is None:
-            raise NotImplementedError(
-                "pivot_table with None index or column is not implemented for now."
-            )
+        # if index is None or columns is None:
+        #     raise NotImplementedError(
+        #         "pivot_table with None index or column is not implemented for now."
+        #     )
 
         from pandas.core.reshape.pivot import _convert_by
 
