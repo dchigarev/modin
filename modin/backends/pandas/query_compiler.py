@@ -1631,7 +1631,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
-        if len(np.unique(keys + values)) < len(keys + values) and len(
+        if len(values) and len(np.unique(keys + values)) < len(keys + values) and len(
             keys + values
         ) < len(self.columns):
             raise ValueError("Keys overlapping")
