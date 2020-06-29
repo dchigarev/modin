@@ -2363,7 +2363,9 @@ class TestDataFrameDefault:
         with pytest.warns(UserWarning):
             df.pivot(index="foo", columns="bar", values="baz")
 
-    @pytest.mark.parametrize("data", test_data_with_simple_values, ids=test_data_with_simple_keys)
+    @pytest.mark.parametrize(
+        "data", test_data_with_simple_values, ids=test_data_with_simple_keys
+    )
     @pytest.mark.parametrize(
         "index",
         [

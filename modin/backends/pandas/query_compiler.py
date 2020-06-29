@@ -1630,7 +1630,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         values = __convert_by(values)
 
         if len(values):
-            to_group = self.getitem_column_array(keys + values)
+            to_group = self.getitem_column_array(np.unique(keys + values))
         else:
             to_group = self
 
