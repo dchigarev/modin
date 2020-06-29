@@ -2421,6 +2421,21 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize("dropna", [True])
     @pytest.mark.parametrize("observed", [False])
     def test_pivot_table(self, data, index, columns, values, aggfunc, dropna, observed):
+        # for some data from test_data_values with `dropna=False` required extremely large amount
+        # of memory, so testing that case with more simple data
+        if not dropna:
+            data = {
+                "A": ["one", "one", "two", "three"] * 6,
+                "B": ["A", "B", "C"] * 8,
+                "C": ["foo", "foo", "foo", "bar", "bar", "bar"] * 4,
+                "D": np.random.randn(24),
+                "E": np.random.randn(24),
+                "F": [
+                    np.datetime64(f"2013-0{i}-{j}")
+                    for i in range(1, 7)
+                    for j in range(10, 17)
+                ],
+            }
         eval_general(
             *create_test_dfs(data),
             operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),

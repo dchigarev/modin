@@ -1616,11 +1616,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 "pivot_table with `margins=True` is not implemented for now."
             )
 
-        if dropna is False:
-            raise NotImplementedError(
-                "pivot_table with `dropna=False` is not implemented for now."
-            )
-
         if index is None or columns is None:
             raise NotImplementedError(
                 "pivot_table with None index or column is not implemented for now."
@@ -1633,8 +1628,31 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns, values = map(__convert_by, [index, columns, values])
+        index, columns = map(__convert_by, [index, columns])
         keys = index + columns
+
+        # if columns from `keys` has NaN values
+        _keys = self.getitem_column_array(keys)
+        if not dropna and _keys.isna().any().any().to_pandas().squeeze():
+            # in that case applying groupby will lose some indices, more investigations needed why,
+            # so it's default to pandas for now, possible fix:
+            # new_index = pandas.MultiIndex.from_arrays(_keys.transpose().to_numpy(), names=keys).sort_values()
+            return self.default_to_pandas(
+                pandas.DataFrame.pivot_table,
+                values=values,
+                index=index,
+                columns=columns,
+                aggfunc=aggfunc,
+                fill_value=fill_value,
+                margins=margins,
+                dropna=dropna,
+                margins_name=margins_name,
+                observed=observed,
+            )
+        else:
+            new_index = None
+
+        values = __convert_by(values)
 
         if len(values):
             to_group = self.getitem_column_array(keys + values)
@@ -1643,7 +1661,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         agged = self.__constructor__(
             to_group._modin_frame._apply_full_axis(
-                1, lambda df: df.groupby(keys, observed=observed).agg(aggfunc)
+                1,
+                lambda df: df.groupby(keys, observed=observed).agg(aggfunc),
+                new_index=new_index,
             )
         )
 
@@ -1656,11 +1676,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
             reaggregated_row.index = row.index.unique()
             reaggregated_rows.append(reaggregated_row)
 
-        agged = (
-            agged.drop(index=indices_to_reaggregate)
-            .concat(axis=0, other=reaggregated_rows)
-            .sort_index()
-        )
+        if len(indices_to_reaggregate):
+            agged = (
+                agged.drop(index=indices_to_reaggregate)
+                .concat(axis=0, other=reaggregated_rows)
+                .sort_index()
+            )
 
         if dropna:
             agged = agged.dropna(how="all")
@@ -1678,6 +1699,17 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if dropna:
             unstacked = unstacked.dropna(axis=1, how="all")
+        else:
+            if isinstance(unstacked.index, pandas.MultiIndex):
+                extended_index = pandas.MultiIndex.from_product(
+                    unstacked.index.levels, names=unstacked.index.names
+                )
+                unstacked = unstacked.reindex(axis=0, labels=extended_index)
+            if isinstance(unstacked.columns, pandas.MultiIndex):
+                extended_columns = pandas.MultiIndex.from_product(
+                    unstacked.columns.levels, names=unstacked.columns.names
+                )
+                unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
         return unstacked
 
