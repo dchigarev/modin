@@ -1617,7 +1617,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             # in that case applying groupby will lose some indices, more investigations needed why,
             # so it's default to pandas for now, possible fix:
             # new_index = pandas.MultiIndex.from_arrays(_keys.transpose().to_numpy(), names=keys).sort_values()
-            self.default_to_pandas(
+            return self.default_to_pandas(
                 pandas.DataFrame.pivot_table,
                 values=values,
                 index=index,
