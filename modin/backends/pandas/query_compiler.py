@@ -1321,7 +1321,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Return:
             a new QueryCompiler
         """
-
         return self.__constructor__(
             self._modin_frame.filter_full_axis(
                 kwargs.get("axis", 0) ^ 1,
@@ -1569,6 +1568,83 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
+    def multi_groupby_agg_emulator(self, by, func):
+        from itertools import chain
+
+        subset = self.getitem_column_array(by)
+        subset = subset.insert(
+            loc=len(subset.columns),
+            column="__index__",
+            value=np.arange(len(self.index)),
+        )
+
+        def grp_fn(df):
+            return list(df.values)
+
+        def resulter(df):
+            vals = [y for x in df.values for y in x]
+            if len(vals) == len(df.index):
+                vals = [vals]
+            return vals
+
+        grouped_indices = self.__constructor__(
+            subset._modin_frame._apply_full_axis(
+                1, lambda df: df.groupby(by).agg(grp_fn)
+            )
+        )
+        indices_to_reaggregate = grouped_indices.index[
+            grouped_indices.index.duplicated()
+        ].unique()
+        reaggregated_rows = []
+
+        for _index in indices_to_reaggregate:
+            numeric_idx = grouped_indices.index.get_indexer_for([_index])
+            row = grouped_indices.getitem_row_array(numeric_idx)
+            reaggregated_row = row.apply(axis=0, func=resulter)
+            reaggregated_row.index = row.index.unique()
+            reaggregated_rows.append(reaggregated_row)
+
+        if len(indices_to_reaggregate) == len(self.index):
+            _tmp = reaggregated_rows[0].concat(axis=0, other=reaggregated_rows[1:])
+            _tmp.to_pandas()
+            grouped_indices = (
+                reaggregated_rows[0]
+                .concat(axis=0, other=reaggregated_rows[1:])
+                .sort_index()
+            )
+        elif len(indices_to_reaggregate):
+            grouped_indices = (
+                grouped_indices.drop(index=indices_to_reaggregate)
+                .concat(axis=0, other=reaggregated_rows)
+                .sort_index()
+            )
+
+        labels = grouped_indices.to_pandas().to_dict()["__index__"]
+        mask = [-1] * len(self.index)
+        for x, i in zip(labels.values(), np.arange(len(labels.keys()))):
+            if isinstance(x[0], list):
+                x = chain(*x)
+            for ind in x:
+                mask[ind] = i
+
+        to_group = self.drop(columns=by)
+        grouped = self.__constructor__(
+            to_group._modin_frame._apply_full_axis(
+                0, lambda df: df.groupby(by=mask).agg(func)
+            )
+        )
+
+        if len(by) > 1:
+            grouped.index = pandas.MultiIndex.from_tuples(labels.keys(), names=by)
+        else:
+            grouped.index = labels.keys()
+            grouped.index.name = by[0]
+
+        # TODO: remove that line when #1618 will be closed
+        grouped.index = grouped.index
+
+        return grouped
+
     def pivot_table(
         self,
         values,
@@ -1637,36 +1713,23 @@ class PandasQueryCompiler(BaseQueryCompiler):
             and len(keys + values) < len(self.columns)
         ):
             raise ValueError("Keys overlapping")
-        
-        breakpoint()
+
         if len(values):
             to_group = self.getitem_column_array(np.unique(keys + values))
         else:
             to_group = self
 
-        agged = self.__constructor__(
-            to_group._modin_frame._apply_full_axis(
-                1,
-                lambda df: df.groupby(keys, observed=observed).agg(aggfunc),
-                new_index=new_index,
-            )
-        )
-
-        indices_to_reaggregate = agged.index[agged.index.duplicated()].unique()
-        reaggregated_rows = []
-        for _index in indices_to_reaggregate:
-            numeric_idx = agged.index.get_indexer_for([_index])
-            row = agged.getitem_row_array(numeric_idx)
-            reaggregated_row = row.apply(axis=0, func=aggfunc)
-            reaggregated_row.index = row.index.unique()
-            reaggregated_rows.append(reaggregated_row)
-
-        if len(indices_to_reaggregate):
-            agged = (
-                agged.drop(index=indices_to_reaggregate)
-                .concat(axis=0, other=reaggregated_rows)
-                .sort_index()
-            )
+        if len(keys) > 1:
+            agged = to_group.multi_groupby_agg_emulator(keys, aggfunc)
+        else:
+            by = to_group.getitem_column_array(keys).to_pandas().squeeze()
+            agged = to_group.groupby_agg(
+                by=by,
+                axis=0,
+                agg_func=lambda df: df.agg(aggfunc),
+                groupby_args={},
+                agg_args={},
+            ).drop(columns=keys)
 
         if dropna:
             agged = agged.dropna(how="all")
