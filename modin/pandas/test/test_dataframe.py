@@ -2371,8 +2371,8 @@ class TestDataFrameDefault:
         [
             lambda df: df.columns[0],
             lambda df: [*df.columns[0:2], *df.columns[-7:-4]],
-            # lambda df: df[df.columns[0]].values,
-            # None,
+            # # lambda df: df[df.columns[0]].values,
+            None,
         ],
     )
     @pytest.mark.parametrize(
@@ -2383,7 +2383,7 @@ class TestDataFrameDefault:
                 *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
                 df.columns[-7],
             ],
-            # None,
+            None,
         ],
     )
     @pytest.mark.parametrize(
@@ -2397,7 +2397,7 @@ class TestDataFrameDefault:
             lambda df: np.mean,
         ],
     )
-    @pytest.mark.parametrize("dropna", [False, True])
+    @pytest.mark.parametrize("dropna", [True, False])
     @pytest.mark.parametrize("observed", [False])
     def test_pivot_table(self, data, index, columns, values, aggfunc, dropna, observed):
         # for some data from test_data_values with `dropna=False` it required extremely large amount

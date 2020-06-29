@@ -1569,6 +1569,83 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
+    def multi_groupby_agg_emulator(self, by, func):
+        from itertools import chain
+
+        subset = self.getitem_column_array(np.unique(by))
+        subset = subset.insert(
+            loc=len(subset.columns),
+            column="__index__",
+            value=np.arange(len(self.index)),
+        )
+
+        def grp_fn(df):
+            return list(df.values)
+
+        def resulter(df):
+            vals = [y for x in df.values for y in x]
+            if len(vals) == len(df.index):
+                vals = [vals]
+            return vals
+
+        grouped_indices = self.__constructor__(
+            subset._modin_frame._apply_full_axis(
+                1, lambda df: df.groupby(by).agg(grp_fn)
+            )
+        )
+        indices_to_reaggregate = grouped_indices.index[
+            grouped_indices.index.duplicated()
+        ].unique()
+        reaggregated_rows = []
+
+        for _index in indices_to_reaggregate:
+            numeric_idx = grouped_indices.index.get_indexer_for([_index])
+            row = grouped_indices.getitem_row_array(numeric_idx)
+            reaggregated_row = row.apply(axis=0, func=resulter)
+            reaggregated_row.index = row.index.unique()
+            reaggregated_rows.append(reaggregated_row)
+
+        if len(indices_to_reaggregate) == len(self.index):
+            _tmp = reaggregated_rows[0].concat(axis=0, other=reaggregated_rows[1:])
+            _tmp.to_pandas()
+            grouped_indices = (
+                reaggregated_rows[0]
+                .concat(axis=0, other=reaggregated_rows[1:])
+                .sort_index()
+            )
+        elif len(indices_to_reaggregate):
+            grouped_indices = (
+                grouped_indices.drop(index=indices_to_reaggregate)
+                .concat(axis=0, other=reaggregated_rows)
+                .sort_index()
+            )
+
+        labels = grouped_indices.to_pandas().to_dict()["__index__"]
+        mask = [-1] * len(self.index)
+        for x, i in zip(labels.values(), np.arange(len(labels.keys()))):
+            if isinstance(x[0], list):
+                x = chain(*x)
+            for ind in x:
+                mask[ind] = i
+
+        to_group = self.drop(columns=by)
+        grouped = self.__constructor__(
+            to_group._modin_frame._apply_full_axis(
+                0, lambda df: df.groupby(by=mask).agg(func)
+            )
+        )
+
+        if len(by) > 1:
+            grouped.index = pandas.MultiIndex.from_tuples(labels.keys(), names=by)
+        else:
+            grouped.index = labels.keys()
+            grouped.index.name = by[0]
+
+        # TODO: remove that line when #1618 will be closed
+        grouped.index = grouped.index
+
+        return grouped.sort_index()
+
     def pivot_table(
         self,
         values,
@@ -1591,10 +1668,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 "pivot_table with `margins=True` is not implemented for now."
             )
 
-        if index is None or columns is None:
-            raise NotImplementedError(
-                "pivot_table with None index or column is not implemented for now."
-            )
+        # if index is None or columns is None:
+        #     raise NotImplementedError(
+        #         "pivot_table with None index or column is not implemented for now."
+        #     )
 
         from pandas.core.reshape.pivot import _convert_by
 
@@ -1608,7 +1685,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         # if columns from `keys` has NaN values
         _keys = self.getitem_column_array(keys)
-        if not dropna and _keys.isna().any().any().to_pandas().squeeze():
+        if _keys.isna().any().any().to_pandas().squeeze():
             # in that case applying groupby will lose some indices, more investigations needed why,
             # so it's default to pandas for now, possible fix:
             # new_index = pandas.MultiIndex.from_arrays(_keys.transpose().to_numpy(), names=keys).sort_values()
@@ -1624,8 +1701,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 margins_name=margins_name,
                 observed=observed,
             )
-        else:
-            new_index = None
 
         values = __convert_by(values)
 
@@ -1643,37 +1718,28 @@ class PandasQueryCompiler(BaseQueryCompiler):
         else:
             to_group = self
 
-        agged = self.__constructor__(
-            to_group._modin_frame._apply_full_axis(
-                1,
-                lambda df: df.groupby(keys, observed=observed).agg(aggfunc),
-                new_index=new_index,
-            )
-        )
-
-        indices_to_reaggregate = agged.index[agged.index.duplicated()].unique()
-        reaggregated_rows = []
-        for _index in indices_to_reaggregate:
-            numeric_idx = agged.index.get_indexer_for([_index])
-            row = agged.getitem_row_array(numeric_idx)
-            reaggregated_row = row.apply(axis=0, func=aggfunc)
-            reaggregated_row.index = row.index.unique()
-            reaggregated_rows.append(reaggregated_row)
-
-        if len(indices_to_reaggregate):
-            agged = (
-                agged.drop(index=indices_to_reaggregate)
-                .concat(axis=0, other=reaggregated_rows)
-                .sort_index()
-            )
+        if len(keys) > 1:
+            agged = to_group.multi_groupby_agg_emulator(keys, aggfunc)
+        else:
+            by = to_group.getitem_column_array(keys).to_pandas().squeeze()
+            agged = to_group.groupby_agg(
+                by=by,
+                axis=0,
+                agg_func=lambda df: df.agg(aggfunc),
+                groupby_args={},
+                agg_args={},
+            ).drop(columns=keys)
 
         if dropna:
             agged = agged.dropna(how="all")
 
-        # that line means agged.unstack(level=columns), we must translate
-        # level names to its indices, because sometimes index may contain
-        # duplicated level names
-        unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
+        if isinstance(agged.index, pandas.MultiIndex):
+            # that line means agged.unstack(level=columns), we must translate
+            # level names to its indices, because sometimes index may contain
+            # duplicated level names
+            unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
+        else:
+            unstacked = agged
 
         if len(values) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
             unstacked.columns = unstacked.columns.droplevel(0)
