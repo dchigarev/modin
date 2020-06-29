@@ -1637,7 +1637,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
             and len(keys + values) < len(self.columns)
         ):
             raise ValueError("Keys overlapping")
-
+        
+        breakpoint()
         if len(values):
             to_group = self.getitem_column_array(np.unique(keys + values))
         else:
@@ -1670,10 +1671,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
         if dropna:
             agged = agged.dropna(how="all")
 
-        # that line means agged.unstack(level=columns), we must translate
-        # level names to its indices, because sometimes index may contain
-        # duplicated level names
-        unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
+        if isinstance(agged.index, pandas.MultiIndex):
+            # that line means agged.unstack(level=columns), we must translate
+            # level names to its indices, because sometimes index may contain
+            # duplicated level names
+            unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
+        else:
+            unstacked = agged
 
         if len(values) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
             unstacked.columns = unstacked.columns.droplevel(0)
