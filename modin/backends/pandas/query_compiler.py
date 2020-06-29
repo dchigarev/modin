@@ -1643,7 +1643,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         # TODO: remove that line when #1618 will be closed
         grouped.index = grouped.index
 
-        return grouped
+        return grouped.sort_index()
 
     def pivot_table(
         self,
