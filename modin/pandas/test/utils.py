@@ -373,6 +373,23 @@ encoding_types = [
     "utf_8_sig",
 ]
 
+simple_data = {
+            "A": ["foo", "foo", "bar", "baz"] * 4,
+            "B": ["one", "one", "two", "two"] * 4,
+            "C": [
+                "small",
+                "large",
+                "large",
+                "small",
+                "small",
+                "large",
+                "small",
+                "small",
+                "large",
+            ],
+            "D": [1, 2, 2, 3, 3, 4, 5, 6, 7],
+            "E": [2, 4, 5, 5, 6, 6, 8, 9, 9],
+        }
 
 def categories_equals(left, right):
     assert (left.ordered and right.ordered) or (not left.ordered and not right.ordered)
