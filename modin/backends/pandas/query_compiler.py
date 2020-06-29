@@ -1603,13 +1603,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns, values = map(__convert_by, [index, columns, values])
+        index, columns= map(__convert_by, [index, columns])
         keys = index + columns
-
-        if len(values):
-            to_group = self.getitem_column_array(keys + values)
-        else:
-            to_group = self
 
         # if columns from `keys` has NaN values
         _keys = self.getitem_column_array(keys)
@@ -1631,6 +1626,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
             )
         else:
             new_index = None
+
+        values = __convert_by(values)
+
+        if len(values):
+            to_group = self.getitem_column_array(keys + values)
+        else:
+            to_group = self
 
         agged = self.__constructor__(
             to_group._modin_frame._apply_full_axis(
