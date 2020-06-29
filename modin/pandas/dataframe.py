@@ -1536,13 +1536,14 @@ class DataFrame(BasePandasDataset):
         values=None,
         index=None,
         columns=None,
-        aggfunc=np.mean,
+        aggfunc="mean",
         fill_value=None,
         margins=False,
         dropna=True,
         margins_name="All",
         observed=False,
     ):
+        aggfunc = np.mean if aggfunc == "mean" else aggfunc
         return self.__constructor__(
             query_compiler=self._query_compiler.pivot_table(
                 values=values,
