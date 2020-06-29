@@ -1591,10 +1591,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 "pivot_table with `margins=True` is not implemented for now."
             )
 
-        if dropna is False:
-            raise NotImplementedError(
-                "pivot_table with `dropna=False` is not implemented for now."
-            )
+        # if dropna is False:
+        #     raise NotImplementedError(
+        #         "pivot_table with `dropna=False` is not implemented for now."
+        #     )
 
         if index is None or columns is None:
             raise NotImplementedError(
@@ -1624,6 +1624,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         indices_to_reaggregate = agged.index[agged.index.duplicated()].unique()
         reaggregated_rows = []
+
         for _index in indices_to_reaggregate:
             numeric_idx = agged.index.get_indexer_for([_index])
             row = agged.getitem_row_array(numeric_idx)
@@ -1639,7 +1640,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if dropna:
             agged = agged.dropna(how="all")
-
+            
         # that line means agged.unstack(level=columns), we must translate
         # level names to its indices, because sometimes index may contain
         # duplicated level names
@@ -1653,6 +1654,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if dropna:
             unstacked = unstacked.dropna(axis=1, how="all")
+        else:
+            if isinstance(unstacked.index, pandas.MultiIndex):
+                extended_index = pandas.MultiIndex.from_product(unstacked.index.levels, names=unstacked.index.names)
+                unstacked = unstacked.reindex(axis=0, labels=extended_index)
+            if isinstance(unstacked.columns, pandas.MultiIndex):
+                extended_columns = pandas.MultiIndex.from_product(unstacked.columns.levels, names=unstacked.columns.names)
+                unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
         return unstacked
 
