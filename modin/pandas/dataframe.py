@@ -1544,7 +1544,7 @@ class DataFrame(BasePandasDataset):
         observed=False,
     ):
         aggfunc = np.mean if aggfunc == "mean" else aggfunc
-        return self.__constructor__(
+        result = self.__constructor__(
             query_compiler=self._query_compiler.pivot_table(
                 values=values,
                 index=index,
@@ -1556,7 +1556,10 @@ class DataFrame(BasePandasDataset):
                 margins_name=margins_name,
                 observed=observed,
             )
-        )
+        ).squeeze()
+        if isinstance(result, Series) and result.name == 0:
+            result.name = None
+        return result
 
     @property
     def plot(
