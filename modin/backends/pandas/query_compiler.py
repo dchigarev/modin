@@ -1631,17 +1631,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
-<<<<<<< HEAD
-        if len(values) and len(np.unique(keys + values)) < len(keys + values) and len(
-            keys + values
-        ) < len(self.columns):
-=======
         if (
             len(values)
             and len(np.unique(keys + values)) < len(keys + values)
             and len(keys + values) < len(self.columns)
         ):
->>>>>>> pivot-table
             raise ValueError("Keys overlapping")
 
         if len(values):
