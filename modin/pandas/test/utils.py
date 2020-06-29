@@ -568,16 +568,25 @@ def check_df_columns_have_nans(df, cols):
     )
 
 
-def eval_general(modin_df, pandas_df, operation, comparator=df_equals, **kwargs):
+def eval_general(
+    modin_df,
+    pandas_df,
+    operation,
+    comparator=df_equals,
+    check_exception_type=True,
+    **kwargs,
+):
     md_kwargs, pd_kwargs = {}, {}
 
     def execute_callable(fn, md_kwargs={}, pd_kwargs={}):
         try:
             pd_result = fn(pandas_df, **pd_kwargs)
-        except Exception as e:
-            with pytest.raises(type(e)):
+        except Exception as pd_e:
+            with pytest.raises(Exception) as md_e:
                 # repr to force materialization
                 repr(fn(modin_df, **md_kwargs))
+            if check_exception_type:
+                assert type(pd_e) == md_e.type
         else:
             md_result = fn(modin_df, **md_kwargs)
             return md_result, pd_result
