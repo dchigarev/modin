@@ -1654,6 +1654,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         values = __convert_by(values)
 
+        # This implementation can handle that case, but pandas raises exception.
+        # Emulating pandas behaviour
+        if len(np.unique(keys + values)) < len(keys + values) and len(
+            keys + values
+        ) < len(self.columns):
+            raise ValueError("Keys overlapping")
+
         if len(values):
             to_group = self.getitem_column_array(np.unique(keys + values))
         else:
