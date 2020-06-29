@@ -1684,7 +1684,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         # if columns from `keys` has NaN values
         _keys = self.getitem_column_array(keys)
-        if not dropna and _keys.isna().any().any().to_pandas().squeeze():
+        if _keys.isna().any().any().to_pandas().squeeze():
             # in that case applying groupby will lose some indices, more investigations needed why,
             # so it's default to pandas for now, possible fix:
             # new_index = pandas.MultiIndex.from_arrays(_keys.transpose().to_numpy(), names=keys).sort_values()
