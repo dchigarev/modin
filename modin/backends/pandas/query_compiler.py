@@ -1603,7 +1603,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
+<<<<<<< HEAD
         index, columns= map(__convert_by, [index, columns])
+=======
+        index, columns = map(__convert_by, [index, columns])
+>>>>>>> pivot-table
         keys = index + columns
 
         # if columns from `keys` has NaN values
@@ -1629,8 +1633,15 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         values = __convert_by(values)
 
+        # This implementation can handle that case, but pandas raises exception.
+        # Emulating pandas behaviour
+        if len(np.unique(keys + values)) < len(keys + values) and len(
+            keys + values
+        ) < len(self.columns):
+            raise ValueError("Keys overlapping")
+
         if len(values):
-            to_group = self.getitem_column_array(keys + values)
+            to_group = self.getitem_column_array(np.unique(keys + values))
         else:
             to_group = self
 

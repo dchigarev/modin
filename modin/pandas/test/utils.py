@@ -23,6 +23,7 @@ from pandas.util.testing import (
 import modin.pandas as pd
 from modin.pandas.utils import to_pandas
 from io import BytesIO
+import os
 
 random_state = np.random.RandomState(seed=42)
 
@@ -161,6 +162,19 @@ test_data_with_duplicates = {
 
 test_data_with_duplicates_values = list(test_data_with_duplicates.values())
 test_data_with_duplicates_keys = list(test_data_with_duplicates.keys())
+
+test_data_with_simple = test_data.copy()
+test_data_with_simple["simple"] = {
+    "A": ["one", "one", "two", "three"] * 6,
+    "B": ["A", "B", "C"] * 8,
+    "C": ["foo", "foo", "foo", "bar", "bar", "bar"] * 4,
+    "D": np.random.randn(24),
+    "E": np.random.randn(24),
+    "F": [np.datetime64(f"2013-0{i}-{j}") for i in range(1, 7) for j in range(10, 14)],
+}
+
+test_data_with_simple_values = list(test_data_with_simple.values())
+test_data_with_simple_keys = list(test_data_with_simple.keys())
 
 numeric_dfs = [
     "empty_data",
@@ -602,3 +616,13 @@ def eval_general(modin_df, pandas_df, operation, comparator=df_equals, **kwargs)
     values = execute_callable(operation, md_kwargs=md_kwargs, pd_kwargs=pd_kwargs)
     if values is not None:
         comparator(*values)
+
+
+def get_args_ids():
+    raw_args = (
+        os.environ.get("PYTEST_CURRENT_TEST").split(":")[-1].split(" ")[0].split("-")
+    )
+    raw_args[-1] = raw_args[-1][:-1]
+    slice_first = raw_args[0].find("[")
+    raw_args[0] = raw_args[0][slice_first + 1 :]
+    return raw_args

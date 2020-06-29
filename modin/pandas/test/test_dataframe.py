@@ -35,6 +35,8 @@ from .utils import (
     test_data_keys,
     test_data_with_duplicates_values,
     test_data_with_duplicates_keys,
+    test_data_with_simple_values,
+    test_data_with_simple_keys,
     numeric_dfs,
     no_numeric_dfs,
     test_func_keys,
@@ -55,6 +57,7 @@ from .utils import (
     int_arg_keys,
     int_arg_values,
     eval_general,
+    get_args_ids,
 )
 
 pd.DEFAULT_NPARTITIONS = 4
@@ -2360,7 +2363,9 @@ class TestDataFrameDefault:
         with pytest.warns(UserWarning):
             df.pivot(index="foo", columns="bar", values="baz")
 
-    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+    @pytest.mark.parametrize(
+        "data", test_data_with_simple_values, ids=test_data_with_simple_keys
+    )
     @pytest.mark.parametrize(
         "index",
         [
@@ -2392,24 +2397,14 @@ class TestDataFrameDefault:
             lambda df: np.mean,
         ],
     )
-    @pytest.mark.parametrize("dropna", [True, False])
+    @pytest.mark.parametrize("dropna", [False, True])
     @pytest.mark.parametrize("observed", [False])
     def test_pivot_table(self, data, index, columns, values, aggfunc, dropna, observed):
-        # for some data from test_data_values with `dropna=False` requires extremely large amount
+        # for some data from test_data_values with `dropna=False` it required extremely large amount
         # of memory, so testing that case with more simple data
-        if not dropna:
-            data = {
-                "A": ["one", "one", "two", "three"] * 6,
-                "B": ["A", "B", "C"] * 8,
-                "C": ["foo", "foo", "foo", "bar", "bar", "bar"] * 4,
-                "D": np.random.randn(24),
-                "E": np.random.randn(24),
-                "F": [
-                    np.datetime64(f"2013-0{i}-{j}")
-                    for i in range(1, 7)
-                    for j in range(10, 17)
-                ],
-            }
+        if not dropna and get_args_ids()[-1] != "simple":
+            return
+
         eval_general(
             *create_test_dfs(data),
             operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
