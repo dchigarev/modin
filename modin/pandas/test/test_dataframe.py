@@ -2382,7 +2382,7 @@ class TestDataFrameDefault:
         ],
     )
     @pytest.mark.parametrize(
-        "values", [lambda df: df.columns[-1]], lambda df: df.columns[-3:-1], None]
+        "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
     )
     @pytest.mark.parametrize(
         "aggfunc",
