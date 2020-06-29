@@ -2414,6 +2414,7 @@ class TestDataFrameDefault:
             aggfunc=aggfunc,
             dropna=dropna,
             observed=observed,
+            check_exception_type=False,
         )
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
