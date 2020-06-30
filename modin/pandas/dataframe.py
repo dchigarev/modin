@@ -36,7 +36,6 @@ from .utils import from_pandas, from_non_pandas, to_pandas, _inherit_docstrings
 from .iterator import PartitionIterator
 from .series import Series
 from .base import BasePandasDataset
-from .concat import concat
 
 
 @_inherit_docstrings(
@@ -1544,6 +1543,7 @@ class DataFrame(BasePandasDataset):
         margins_name="All",
         observed=False,
     ):
+        from .concat import concat
         if is_list_like(aggfunc):
             to_concat = []
             keys = []
