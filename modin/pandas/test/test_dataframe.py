@@ -2389,8 +2389,12 @@ class TestDataFrameDefault:
         [
             lambda df: df.columns[0],
             lambda df: [*df.columns[0:2], *df.columns[-7:-4]],
-            # # lambda df: df[df.columns[0]].values,
-            None,
+            pytest.param(
+                None,
+                marks=pytest.mark.xfail(
+                    reason="Bug in unstack implementation, see #1649"
+                ),
+            ),
         ],
     )
     @pytest.mark.parametrize(

@@ -1672,11 +1672,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 mask[ind] = i
 
         grouped = compute_groupby(self, mask)
-        # grouped = self.__constructor__(
-        #     to_group._modin_frame._apply_full_axis(
-        #         0, lambda df: df.groupby(by=mask).agg(func)
-        #     )
-        # )
 
         if len(by) > 1:
             grouped.index = pandas.MultiIndex.from_tuples(labels.keys(), names=by)
@@ -1755,7 +1750,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             to_group = self.getitem_column_array(np.unique(keys + values))
         else:
             to_group = self
-        breakpoint()
+
         agged = to_group.compute_by(keys, aggfunc)
 
         if dropna:
