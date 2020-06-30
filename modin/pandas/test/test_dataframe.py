@@ -2432,7 +2432,7 @@ class TestDataFrameDefault:
             check_exception_type=None,
         )
 
-    @pytest.mark.parametrize("data", [test_data_with_simple_values["int_data"]])
+    @pytest.mark.parametrize("data", [test_data_with_simple_values[0]])
     @pytest.mark.parametrize(
         "index", [lambda df: df.columns[0],],
     )
