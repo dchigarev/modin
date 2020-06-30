@@ -2440,21 +2440,31 @@ class TestDataFrameDefault:
             check_exception_type=None,
         )
 
-    @pytest.mark.parametrize("data", [test_data_with_simple_values["int_data"]])
+    @pytest.mark.parametrize("data", [test_data_with_simple_values[0]])
     @pytest.mark.parametrize(
-        "index", [lambda df: df.columns[0],],
+        "index", [lambda df: df.columns[0]],
     )
     @pytest.mark.parametrize(
         "columns", [lambda df: df.columns[len(df.columns) // 2]],
     )
-    @pytest.mark.parametrize("values", [lambda df: df.columns[-1]])
+    @pytest.mark.parametrize(
+        "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
+    )
     @pytest.mark.parametrize(
         "aggfunc",
         [["mean", "sum"], lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"}],
     )
     @pytest.mark.parametrize("dropna", [True, False])
-    @pytest.mark.parametrize("margins", [False])
-    @pytest.mark.parametrize("margins_name", [None])
+    @pytest.mark.parametrize(
+        "margins",
+        [
+            False,
+            pytest.param(
+                True, marks=pytest.mark.xfail(reason="Not fully implemented.")
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("margins_name", ["All", "Custom name"])
     @pytest.mark.parametrize("observed", [True, False, None])
     def test_pivot_table_extra(
         self,
