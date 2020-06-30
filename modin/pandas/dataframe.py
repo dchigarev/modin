@@ -1556,7 +1556,9 @@ class DataFrame(BasePandasDataset):
                 observed=observed,
             )
         )
-        if len(result.columns) <= 1 and result.columns[0] == 0:
+        if (len(result.columns) <= 1 and result.columns[0] == 0) or (
+            len(result.index) <= 1 and result.index[0] == 0
+        ):
             result = result.squeeze()
             if getattr(result, "name", None) == 0:
                 result.name = None
