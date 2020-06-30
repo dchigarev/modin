@@ -1543,8 +1543,7 @@ class DataFrame(BasePandasDataset):
         margins_name="All",
         observed=False,
     ):
-        aggfunc = np.mean if aggfunc == "mean" else aggfunc
-        return self.__constructor__(
+        result = self.__constructor__(
             query_compiler=self._query_compiler.pivot_table(
                 values=values,
                 index=index,
@@ -1557,6 +1556,11 @@ class DataFrame(BasePandasDataset):
                 observed=observed,
             )
         )
+        if result.columns <= 1:
+            result = result.squeeze()
+            if getattr(result, "name", None) == 0:
+                result.name = None
+        return result
 
     @property
     def plot(
