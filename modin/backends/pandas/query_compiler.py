@@ -1755,7 +1755,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             to_group = self.getitem_column_array(np.unique(keys + values))
         else:
             to_group = self
-
+        breakpoint()
         agged = to_group.compute_by(keys, aggfunc)
 
         if dropna:
