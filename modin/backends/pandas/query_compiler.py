@@ -1593,15 +1593,18 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
-    def multi_groupby_agg_emulator(self, by, func):
+    def compute_by(self, by, func):
         from itertools import chain
 
-        subset = self.getitem_column_array(np.unique(by))
-        subset = subset.insert(
-            loc=len(subset.columns),
-            column="__index__",
-            value=np.arange(len(self.index)),
-        )
+        def compute_groupby(qc, mask):
+            qc = qc.drop(columns=by)
+            return qc.groupby_agg(
+                by=mask,
+                axis=0,
+                agg_func=lambda df: df.agg(func),
+                groupby_args={},
+                agg_args={},
+            )
 
         def grp_fn(df):
             return list(df.values)
@@ -1611,6 +1614,22 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if len(vals) == len(df.index):
                 vals = [vals]
             return vals
+
+        if not is_list_like(by):
+            by = [by]
+
+        if len(by) == 0:
+            raise ValueError("No group keys passed!")
+        elif len(by) == 1:
+            mask = self.getitem_column_array(by).to_pandas().squeeze()
+            return compute_groupby(self, mask)
+
+        subset = self.getitem_column_array(np.unique(by))
+        subset = subset.insert(
+            loc=len(subset.columns),
+            column="__index__",
+            value=np.arange(len(self.index)),
+        )
 
         grouped_indices = self.__constructor__(
             subset._modin_frame._apply_full_axis(
@@ -1652,12 +1671,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
             for ind in x:
                 mask[ind] = i
 
-        to_group = self.drop(columns=by)
-        grouped = self.__constructor__(
-            to_group._modin_frame._apply_full_axis(
-                0, lambda df: df.groupby(by=mask).agg(func)
-            )
-        )
+        grouped = compute_groupby(self, mask)
+        # grouped = self.__constructor__(
+        #     to_group._modin_frame._apply_full_axis(
+        #         0, lambda df: df.groupby(by=mask).agg(func)
+        #     )
+        # )
 
         if len(by) > 1:
             grouped.index = pandas.MultiIndex.from_tuples(labels.keys(), names=by)
@@ -1691,11 +1710,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
             raise NotImplementedError(
                 "pivot_table with `margins=True` is not implemented for now."
             )
-
-        # if index is None or columns is None:
-        #     raise NotImplementedError(
-        #         "pivot_table with None index or column is not implemented for now."
-        #     )
 
         from pandas.core.reshape.pivot import _convert_by
 
