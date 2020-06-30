@@ -588,7 +588,7 @@ def eval_general(
                 # repr to force materialization
                 repr(fn(modin_df, **md_kwargs))
             if check_exception_type:
-                assert type(pd_e) == md_e.type
+                assert isinstance(md_e.value, type(pd_e))
         else:
             md_result = fn(modin_df, **md_kwargs)
             return md_result, pd_result
