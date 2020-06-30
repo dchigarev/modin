@@ -1786,7 +1786,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 )
                 unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
-        return unstacked
+        return unstacked.sort_index()
 
     # Daft implementation grabbed from #1649.
     # PLEASE DO NOT MERGE CURRENT PR UNTIL THIS COMMENT WILL BE REMOVED
