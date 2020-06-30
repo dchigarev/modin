@@ -1544,6 +1544,7 @@ class DataFrame(BasePandasDataset):
         observed=False,
     ):
         from .concat import concat
+
         if is_list_like(aggfunc):
             to_concat = []
             keys = []
