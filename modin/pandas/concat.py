@@ -110,6 +110,12 @@ def concat(
             }
             tuples = [(k, o) for k, obj in new_idx_labels.items() for o in obj]
             new_idx = pandas.MultiIndex.from_tuples(tuples)
+
+            # BUG: concat loses index names, dirty fix just for tests,
+            # TODO: create issue and fix in another PR
+            old_name = objs[0].columns.name if axis else objs[0].index.name
+            if old_name:
+                new_idx.names = [None, old_name]
     else:
         new_idx = None
     new_query_compiler = objs[0].concat(

@@ -1327,7 +1327,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Return:
             a new QueryCompiler
         """
-
         return self.__constructor__(
             self._modin_frame.filter_full_axis(
                 kwargs.get("axis", 0) ^ 1,
@@ -1699,11 +1698,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
     ):
         assert callable(aggfunc) or isinstance(aggfunc, (str, dict))
 
-        if margins is True:
-            raise NotImplementedError(
-                "pivot_table with `margins=True` is not implemented for now."
-            )
-
         from pandas.core.reshape.pivot import _convert_by
 
         def __convert_by(by):
@@ -1782,10 +1776,67 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 )
                 unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
+        unstacked = unstacked.sort_index()
+
+        if margins:
+            if isinstance(unstacked.columns, pandas.MultiIndex):
+                splitter = "___splitter___:"
+                _margins = []
+                _positions = []
+                for val, i in zip(values, np.arange(len(values))):
+                    idx = unstacked.columns.get_loc(val)
+                    if isinstance(idx, slice):
+                        column_index = np.arange(idx.start, idx.stop)
+                    else:
+                        column_index = [idx]
+                    # breakpoint()
+                    margin = unstacked.getitem_column_array(
+                        key=column_index, numeric=True
+                    ).apply(axis=1, func=aggfunc)
+
+                    margin_label = (
+                        val,
+                        f"{unstacked.columns[column_index[-1]][1]}{splitter}{margins_name}",
+                    )
+                    margin.columns = pandas.MultiIndex.from_tuples(
+                        [margin_label], names=unstacked.columns.names
+                    )
+                    _margins.append(margin)
+                    _positions.append(column_index[-1] + 1 + i)
+
+                unstacked = unstacked.concat(axis=1, other=_margins).sort_index(axis=1)
+                new_columns = unstacked.columns.values
+                for i in _positions:
+                    first, old_name = new_columns[i]
+                    splitter_position = old_name.find(splitter)
+                    assert splitter_position != -1
+
+                    new_columns[i] = (
+                        first,
+                        old_name[splitter_position + len(splitter) :],
+                    )
+
+                unstacked.columns = pandas.MultiIndex.from_tuples(
+                    new_columns, names=unstacked.columns.names
+                )
+            else:
+                margin = unstacked.apply(axis=1, func=aggfunc)
+                margin.columns = margins_name
+                unstacked = unstacked.concat(axis=1, other=[margin])
+
+            bottom_margin = unstacked.apply(axis=0, func=aggfunc)
+            bottom_margin.index = [margins_name]
+            bottom_margin.index.name = unstacked.index.name
+
+            # TODO: remove that line when #1618 will be closed
+            bottom_margin.index = bottom_margin.index
+
+            unstacked = unstacked.concat(axis=0, other=[bottom_margin])
+
         if fill_value:
             unstacked.fillna(value=fill_value)
 
-        return unstacked.sort_index()
+        return unstacked
 
     # Daft implementation grabbed from #1649.
     # PLEASE DO NOT MERGE CURRENT PR UNTIL THIS COMMENT WILL BE REMOVED
