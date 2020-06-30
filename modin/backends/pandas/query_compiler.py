@@ -1756,17 +1756,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         else:
             to_group = self
 
-        if len(keys) > 1:
-            agged = to_group.multi_groupby_agg_emulator(keys, aggfunc)
-        else:
-            by = to_group.getitem_column_array(keys).to_pandas().squeeze()
-            agged = to_group.groupby_agg(
-                by=by,
-                axis=0,
-                agg_func=lambda df: df.agg(aggfunc),
-                groupby_args={},
-                agg_args={},
-            ).drop(columns=keys)
+        agged = to_group.multi_groupby_agg_emulator(keys, aggfunc)
 
         if dropna:
             agged = agged.dropna(how="all")
