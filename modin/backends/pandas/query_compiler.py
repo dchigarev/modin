@@ -1756,7 +1756,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         else:
             to_group = self
 
-        agged = to_group.multi_groupby_agg_emulator(keys, aggfunc)
+        agged = to_group.compute_by(keys, aggfunc)
 
         if dropna:
             agged = agged.dropna(how="all")
