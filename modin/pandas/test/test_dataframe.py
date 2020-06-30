@@ -2420,16 +2420,10 @@ class TestDataFrameDefault:
         "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
     )
     @pytest.mark.parametrize(
-        "aggfunc",
-        [
-            # ["mean", "sum"],
-            # lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"},
-            lambda df: np.mean,
-        ],
+        "aggfunc", [lambda df: np.mean],
     )
     @pytest.mark.parametrize("dropna", [True, False])
-    @pytest.mark.parametrize("observed", [False])
-    def test_pivot_table(self, data, index, columns, values, aggfunc, dropna, observed):
+    def test_pivot_table(self, data, index, columns, values, aggfunc, dropna):
         # for some data from test_data_values with `dropna=False` it required extremely large amount
         # of memory, so testing that case with more simple data
         if not dropna and get_args_ids()[-1] != "simple":
@@ -2443,6 +2437,47 @@ class TestDataFrameDefault:
             values=values,
             aggfunc=aggfunc,
             dropna=dropna,
+            check_exception_type=None,
+        )
+
+    @pytest.mark.parametrize("data", [test_data_with_simple_values["int_data"]])
+    @pytest.mark.parametrize(
+        "index", [lambda df: df.columns[0],],
+    )
+    @pytest.mark.parametrize(
+        "columns", [lambda df: df.columns[len(df.columns) // 2]],
+    )
+    @pytest.mark.parametrize("values", [lambda df: df.columns[-1]])
+    @pytest.mark.parametrize(
+        "aggfunc",
+        [["mean", "sum"], lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"}],
+    )
+    @pytest.mark.parametrize("dropna", [True, False])
+    @pytest.mark.parametrize("margins", [False])
+    @pytest.mark.parametrize("margins_name", [None])
+    @pytest.mark.parametrize("observed", [True, False, None])
+    def test_pivot_table_extra(
+        self,
+        data,
+        index,
+        columns,
+        values,
+        aggfunc,
+        margins,
+        margins_name,
+        dropna,
+        observed,
+    ):
+        eval_general(
+            *create_test_dfs(data),
+            operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
+            index=index,
+            columns=columns,
+            values=values,
+            aggfunc=aggfunc,
+            dropna=dropna,
+            margins=margins,
+            margins_name=margins_name,
             observed=observed,
             check_exception_type=None,
         )
