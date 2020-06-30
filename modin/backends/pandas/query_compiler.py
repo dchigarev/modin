@@ -1696,10 +1696,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         margins_name,
         observed,
     ):
-        if not callable(aggfunc) and not isinstance(aggfunc, str):
-            raise NotImplementedError(
-                "pivot_table with multiple aggregation functions is not implemented for now."
-            )
+        assert callable(aggfunc) or isinstance(aggfunc, (str, dict))
 
         if margins is True:
             raise NotImplementedError(
@@ -1783,6 +1780,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
                     unstacked.columns.levels, names=unstacked.columns.names
                 )
                 unstacked = unstacked.reindex(axis=1, labels=extended_columns)
+
+        if fill_value:
+            unstacked.fillna(value=fill_value)
 
         return unstacked.sort_index()
 

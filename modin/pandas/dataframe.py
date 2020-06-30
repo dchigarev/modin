@@ -36,6 +36,7 @@ from .utils import from_pandas, from_non_pandas, to_pandas, _inherit_docstrings
 from .iterator import PartitionIterator
 from .series import Series
 from .base import BasePandasDataset
+from .concat import concat
 
 
 @_inherit_docstrings(
@@ -1543,6 +1544,26 @@ class DataFrame(BasePandasDataset):
         margins_name="All",
         observed=False,
     ):
+        if is_list_like(aggfunc):
+            to_concat = []
+            keys = []
+            for func in aggfunc:
+                part = self.pivot_table(
+                    values,
+                    index,
+                    columns,
+                    func,
+                    fill_value,
+                    margins,
+                    dropna,
+                    margins_name,
+                    observed,
+                )
+                to_concat.append(part)
+                keys.append(getattr(func, "__name__", str(func)))
+
+            return concat(to_concat, keys=keys, axis=1)
+
         result = self.__constructor__(
             query_compiler=self._query_compiler.pivot_table(
                 values=values,
