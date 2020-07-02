@@ -141,6 +141,7 @@ def concat(
             result_df.columns = new_idx
     return result_df
 
+
 # fix of #1683 grabbed from #1684 just for tests
 def _determine_name(objs: list, axis):
     axis_getter = (lambda df: df.columns) if axis else (lambda df: df.index)
