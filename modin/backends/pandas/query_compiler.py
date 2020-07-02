@@ -667,7 +667,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     def melt(self, *args, **kwargs):
         return self.__constructor__(
-            self._modin_frame._apply_full_axis(0, lambda df: df.melt(*args, **kwargs))
+            self._modin_frame._apply_full_axis(1, lambda df: df.melt(*args, **kwargs))
         )
 
     # String map partitions operations
