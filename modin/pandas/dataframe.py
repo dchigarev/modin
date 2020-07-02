@@ -1342,13 +1342,14 @@ class DataFrame(BasePandasDataset):
         value_name="value",
         col_level=None,
     ):
-        return self._default_to_pandas(
-            pandas.DataFrame.melt,
-            id_vars=id_vars,
-            value_vars=value_vars,
-            var_name=var_name,
-            value_name=value_name,
-            col_level=col_level,
+        return self.__constructor__(
+            query_compiler=self._query_compiler.melt(
+                id_vars=id_vars,
+                value_vars=value_vars,
+                var_name=var_name,
+                value_name=value_name,
+                col_level=col_level,
+            )
         )
 
     def memory_usage(self, index=True, deep=False):

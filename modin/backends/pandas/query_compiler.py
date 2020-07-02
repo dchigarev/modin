@@ -665,6 +665,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Map partitions operations
 
+    def melt(self, *args, **kwargs):
+        return self.__constructor__(
+            self._modin_frame._apply_full_axis(0, lambda df: df.melt(*args, **kwargs))
+        )
+
     # String map partitions operations
 
     str_capitalize = MapFunction.register(_str_map("capitalize"), dtypes="copy")
