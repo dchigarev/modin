@@ -2356,15 +2356,15 @@ class TestDataFrameDefault:
             except ValueError:
                 pass
 
-    @pytest.mark.parameterize("data", test_data_values, ids=test_data_keys)
-    @pytest.mark.parameterize(
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+    @pytest.mark.parametrize(
         "id_vars", [lambda df: df.columns[0], lambda df: df.columns[:4], None]
     )
-    @pytest.mark.parameterize(
+    @pytest.mark.parametrize(
         "value_vars", [lambda df: df.columns[-1], lambda df: df.columns[-4:], None]
     )
-    @pytest.mark.parameterize("value_name", ["custom name", None])
-    @pytest.mark.parameterize("col_level", [None, 0, -1])
+    @pytest.mark.parametrize("value_name", ["custom name", None])
+    @pytest.mark.parametrize("col_level", [None, 0, -1])
     def test_melt(self, data, id_vars, value_vars, value_name, col_level):
         eval_general(
             *create_test_dfs(data),
