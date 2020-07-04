@@ -1216,15 +1216,16 @@ class PandasQueryCompiler(BaseQueryCompiler):
         )  # we want stable sort here, so using merge sort because it is the only stable one
 
         parts_amount = len(shuffled.index) // len(shuffled.index.unique())
+        idx_len = len(shuffled.index)
 
-        parts = []
-        for i in range(parts_amount):
-            part = shuffled.getitem_row_array(
-                np.arange(i, len(shuffled.index), parts_amount)
-            )
-            parts.append(part)
+        def sorter(df):
+            parts = []
+            for i in range(parts_amount):
+                part = df.iloc[np.arange(i, idx_len, parts_amount)]
+                parts.append(part)
+            return pandas.concat(axis=0, objs=parts)
 
-        result = parts[0].concat(axis=0, other=parts[1:])
+        result = self.__constructor__(shuffled._modin_frame._apply_full_axis(0, sorter))
         result = result.reset_index(drop=True)
         return result
 
