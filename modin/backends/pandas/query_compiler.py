@@ -665,52 +665,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Map partitions operations
 
-    def melt(self, *args, **kwargs):
-        def _convert_to_list(x):
-            if is_list_like(x):
-                x = [*x]
-            elif x is not None:
-                x = [x]
-            return x
-
-        unique_name = "__-index-__"
-
-        prepaired = self.insert(
-            loc=len(self.columns), column=unique_name, value=np.arange(len(self.index))
-        )
-
-        id_vars = _convert_to_list(kwargs.get("id_vars", None))
-        id_vars.append(unique_name)
-        kwargs["id_vars"] = id_vars
-
-        shuffled = self.__constructor__(
-            prepaired._modin_frame._apply_full_axis(
-                1, lambda df: df.melt(*args, **kwargs)
-            )
-        )
-
-        shuffled.index = (
-            shuffled.getitem_column_array([unique_name]).to_pandas().squeeze()
-        )
-        shuffled = shuffled.drop(columns=[unique_name])
-
-        shuffled = shuffled.sort_index(
-            kind="mergesort"
-        )  # we want stable sort here, so using merge sort because it is the only stable one
-
-        parts_amount = len(shuffled.index) // len(shuffled.index.unique())
-
-        parts = []
-        for i in range(parts_amount):
-            part = shuffled.getitem_row_array(
-                np.arange(i, len(shuffled.index), parts_amount)
-            )
-            parts.append(part)
-
-        result = parts[0].concat(axis=0, other=parts[1:])
-        result = result.reset_index(drop=True)
-        return result
-
     # String map partitions operations
 
     str_capitalize = MapFunction.register(_str_map("capitalize"), dtypes="copy")
@@ -1225,6 +1179,54 @@ class PandasQueryCompiler(BaseQueryCompiler):
             dtypes="copy" if axis == 0 else None,
         )
         return self.__constructor__(new_modin_frame)
+
+    def melt(self, *args, **kwargs):
+        def _convert_to_list(x):
+            if is_list_like(x):
+                x = [*x]
+            elif x is not None:
+                x = [x]
+            else:
+                x = []
+            return x
+
+        unique_name = "__-index-__"
+
+        prepaired = self.insert(
+            loc=len(self.columns), column=unique_name, value=np.arange(len(self.index))
+        )
+
+        id_vars = _convert_to_list(kwargs.get("id_vars", None))
+        id_vars.append(unique_name)
+        kwargs["id_vars"] = id_vars
+
+        shuffled = self.__constructor__(
+            prepaired._modin_frame._apply_full_axis(
+                1, lambda df: df.melt(*args, **kwargs)
+            )
+        )
+
+        shuffled.index = (
+            shuffled.getitem_column_array([unique_name]).to_pandas().squeeze()
+        )
+        shuffled = shuffled.drop(columns=[unique_name])
+
+        shuffled = shuffled.sort_index(
+            kind="mergesort"
+        )  # we want stable sort here, so using merge sort because it is the only stable one
+
+        parts_amount = len(shuffled.index) // len(shuffled.index.unique())
+
+        parts = []
+        for i in range(parts_amount):
+            part = shuffled.getitem_row_array(
+                np.arange(i, len(shuffled.index), parts_amount)
+            )
+            parts.append(part)
+
+        result = parts[0].concat(axis=0, other=parts[1:])
+        result = result.reset_index(drop=True)
+        return result
 
     # END Map across rows/columns
 
