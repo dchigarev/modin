@@ -666,13 +666,23 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # END Map partitions operations
 
     def melt(self, *args, **kwargs):
+        def _convert_to_list(x):
+            if is_list_like(x):
+                x = [*x]
+            elif x is not None:
+                x = [x]
+            return x
+        
         unique_name = "__-index-__"
 
         prepaired = self.insert(
             loc=len(self.columns), column=unique_name, value=np.arange(len(self.index))
         )
+
+        id_vars = _convert_to_list(kwargs.get("id_vars", None))
         id_vars.append(unique_name)
         kwargs["id_vars"] = id_vars
+
         shuffled = self.__constructor__(
             prepaired._modin_frame._apply_full_axis(
                 1, lambda df: df.melt(*args, **kwargs)
