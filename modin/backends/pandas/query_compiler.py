@@ -1594,101 +1594,28 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # END Manual Partitioning methods
 
     def compute_by(self, by, func):
-        from itertools import chain
-
-        def compute_groupby(qc, mask):
-            qc = qc.drop(columns=by)
-            return qc.groupby_agg(
-                by=mask,
-                axis=0,
-                agg_func=lambda df: df.agg(func),
-                groupby_args={},
-                agg_args={},
-            )
-
-        def grp_fn(df):
-            return list(df.values)
-
-        def resulter(df):
-            vals = [y for x in df.values for y in x]
-            if len(vals) == len(df.index):
-                vals = [vals]
-            return vals
-
         if not is_list_like(by):
             by = [by]
 
         if len(by) == 0:
             raise ValueError("No group keys passed!")
-        elif len(by) == 1:
+        else:
             mask = self.getitem_column_array(by).to_pandas().squeeze()
-            return compute_groupby(self, mask)
-        else:
-            mask = self.getitem_column_array(by).to_pandas()
-            bys = []
-            for x in mask.columns:
-                bys.append(mask[x])
-            return compute_groupby(self, bys)
 
-        subset = self.getitem_column_array(np.unique(by))
-        subset = subset.insert(
-            loc=len(subset.columns),
-            column="__index__",
-            value=np.arange(len(self.index)),
+        if isinstance(mask, pandas.DataFrame):
+            _mask = []
+            for col in mask.columns:
+                _mask.append(mask[col])
+            mask = _mask
+
+        to_group = self.drop(columns=by)
+        return to_group.groupby_agg(
+            by=mask,
+            axis=0,
+            agg_func=lambda df: df.agg(func),
+            groupby_args={},
+            agg_args={},
         )
-
-        grouped_indices = self.__constructor__(
-            subset._modin_frame._apply_full_axis(
-                1, lambda df: df.groupby(by).agg(grp_fn)
-            )
-        )
-        indices_to_reaggregate = grouped_indices.index[
-            grouped_indices.index.duplicated()
-        ].unique()
-        reaggregated_rows = []
-
-        def mapper(df):
-            for _index in indices_to_reaggregate:
-                numeric_idx = df.index.get_indexer_for([_index])
-                row = df.iloc[numeric_idx]
-                reaggregated_row = row.apply(axis=0, func=resulter)
-                reaggregated_row.index = row.index.unique()
-                reaggregated_rows.append(reaggregated_row)
-
-            if len(indices_to_reaggregate) == len(self.index):
-                df = pandas.concat(axis=0, objs=reaggregated_rows).sort_index()
-            elif len(indices_to_reaggregate):
-                df = pandas.concat(
-                    axis=0,
-                    objs=[df.drop(index=indices_to_reaggregate), *reaggregated_rows],
-                ).sort_index()
-
-            return df
-
-        grouped_indices = self.__constructor__(
-            grouped_indices._modin_frame._apply_full_axis(0, mapper)
-        )
-
-        labels = grouped_indices.to_pandas().to_dict()["__index__"]
-        mask = [-1] * len(self.index)
-        for x, i in zip(labels.values(), np.arange(len(labels.keys()))):
-            if isinstance(x[0], list):
-                x = chain(*x)
-            for ind in x:
-                mask[ind] = i
-
-        grouped = compute_groupby(self, mask)
-
-        if len(by) > 1:
-            grouped.index = pandas.MultiIndex.from_tuples(labels.keys(), names=by)
-        else:
-            grouped.index = labels.keys()
-            grouped.index.name = by[0]
-
-        # TODO: remove that line when #1618 will be closed
-        grouped.index = grouped.index
-
-        return grouped.sort_index()
 
     def pivot_table(
         self,
