@@ -672,7 +672,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             elif x is not None:
                 x = [x]
             return x
-        
+
         unique_name = "__-index-__"
 
         prepaired = self.insert(
