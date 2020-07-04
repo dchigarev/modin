@@ -666,9 +666,40 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # END Map partitions operations
 
     def melt(self, *args, **kwargs):
-        return self.__constructor__(
-            self._modin_frame._apply_full_axis(1, lambda df: df.melt(*args, **kwargs))
+        unique_name = "__-index-__"
+
+        prepaired = self.insert(
+            loc=len(self.columns), column=unique_name, value=np.arange(len(self.index))
         )
+        id_vars.append(unique_name)
+        kwargs["id_vars"] = id_vars
+        shuffled = self.__constructor__(
+            prepaired._modin_frame._apply_full_axis(
+                1, lambda df: df.melt(*args, **kwargs)
+            )
+        )
+
+        shuffled.index = (
+            shuffled.getitem_column_array([unique_name]).to_pandas().squeeze()
+        )
+        shuffled = shuffled.drop(columns=[unique_name])
+
+        shuffled = shuffled.sort_index(
+            kind="mergesort"
+        )  # we want stable sort here, so using merge sort because it is the only stable one
+
+        parts_amount = len(shuffled.index) // len(shuffled.index.unique())
+
+        parts = []
+        for i in range(parts_amount):
+            part = shuffled.getitem_row_array(
+                np.arange(i, len(shuffled.index), parts_amount)
+            )
+            parts.append(part)
+
+        result = parts[0].concat(axis=0, other=parts[1:])
+        result = result.reset_index(drop=True)
+        return result
 
     # String map partitions operations
 
