@@ -1192,6 +1192,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         unique_name = "__-index-__"
 
+        # inserting column to sort in correct order futhure
         prepaired = self.insert(
             loc=len(self.columns), column=unique_name, value=np.arange(len(self.index))
         )
