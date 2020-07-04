@@ -1623,6 +1623,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
         elif len(by) == 1:
             mask = self.getitem_column_array(by).to_pandas().squeeze()
             return compute_groupby(self, mask)
+        else:
+            mask = self.getitem_column_array(by).to_pandas()
+            bys = []
+            for x in mask.columns:
+                bys.append(mask[x])
+            return compute_groupby(self, bys)
 
         subset = self.getitem_column_array(np.unique(by))
         subset = subset.insert(
