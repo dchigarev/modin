@@ -2363,16 +2363,12 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize(
         "value_vars", [lambda df: df.columns[-1], lambda df: df.columns[-4:], None]
     )
-    @pytest.mark.parametrize("value_name", ["custom name", None])
-    @pytest.mark.parametrize("col_level", [None, 0, -1])
-    def test_melt(self, data, id_vars, value_vars, value_name, col_level):
+    def test_melt(self, data, id_vars, value_vars):
         eval_general(
             *create_test_dfs(data),
             lambda df, *args, **kwargs: df.melt(*args, **kwargs),
             id_vars=id_vars,
             value_vars=value_vars,
-            value_name=value_name,
-            col_level=col_level,
         )
 
     def test_pct_change(self):
