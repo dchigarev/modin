@@ -1623,6 +1623,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
         elif len(by) == 1:
             mask = self.getitem_column_array(by).to_pandas().squeeze()
             return compute_groupby(self, mask)
+        else:
+            mask = self.getitem_column_array(by).to_pandas()
+            bys = []
+            for x in mask.columns:
+                bys.append(mask[x])
+            return compute_groupby(self, bys)
 
         subset = self.getitem_column_array(np.unique(by))
         subset = subset.insert(
@@ -1641,27 +1647,27 @@ class PandasQueryCompiler(BaseQueryCompiler):
         ].unique()
         reaggregated_rows = []
 
-        for _index in indices_to_reaggregate:
-            numeric_idx = grouped_indices.index.get_indexer_for([_index])
-            row = grouped_indices.getitem_row_array(numeric_idx)
-            reaggregated_row = row.apply(axis=0, func=resulter)
-            reaggregated_row.index = row.index.unique()
-            reaggregated_rows.append(reaggregated_row)
+        def mapper(df):
+            for _index in indices_to_reaggregate:
+                numeric_idx = df.index.get_indexer_for([_index])
+                row = df.iloc[numeric_idx]
+                reaggregated_row = row.apply(axis=0, func=resulter)
+                reaggregated_row.index = row.index.unique()
+                reaggregated_rows.append(reaggregated_row)
 
-        if len(indices_to_reaggregate) == len(self.index):
-            _tmp = reaggregated_rows[0].concat(axis=0, other=reaggregated_rows[1:])
-            _tmp.to_pandas()
-            grouped_indices = (
-                reaggregated_rows[0]
-                .concat(axis=0, other=reaggregated_rows[1:])
-                .sort_index()
-            )
-        elif len(indices_to_reaggregate):
-            grouped_indices = (
-                grouped_indices.drop(index=indices_to_reaggregate)
-                .concat(axis=0, other=reaggregated_rows)
-                .sort_index()
-            )
+            if len(indices_to_reaggregate) == len(self.index):
+                df = pandas.concat(axis=0, objs=reaggregated_rows).sort_index()
+            elif len(indices_to_reaggregate):
+                df = pandas.concat(
+                    axis=0,
+                    objs=[df.drop(index=indices_to_reaggregate), *reaggregated_rows],
+                ).sort_index()
+
+            return df
+
+        grouped_indices = self.__constructor__(
+            grouped_indices._modin_frame._apply_full_axis(0, mapper)
+        )
 
         labels = grouped_indices.to_pandas().to_dict()["__index__"]
         mask = [-1] * len(self.index)
