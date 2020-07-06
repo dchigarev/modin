@@ -1680,7 +1680,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if isinstance(by, pandas.Index):
                 return list(by)
             return _convert_by(by)
-        
+
         index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
 
@@ -1777,21 +1777,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         return unstacked
 
-    # Daft implementation grabbed from #1649.
+    # Unstack implementation from #1649 still kinda buggie, so using default_to_pandas just for testing.
     # PLEASE DO NOT MERGE CURRENT PR UNTIL THIS COMMENT WILL BE REMOVED
     def unstack(self, is_ser_out=False, is_ser_in=False, level=-1, fill_value=None):
-        def map_func(df):
-            if is_ser_in:
-                df = df.squeeze()
-            return pandas.DataFrame(df.unstack(level=level, fill_value=fill_value))
-
-        new_columns = None
-        if is_ser_out:
-            new_columns = ["__reduced__"]
-        new_modin_frame = self._modin_frame._apply_full_axis(
-            axis=0, func=map_func, new_columns=new_columns
+        return self.default_to_pandas(
+            pandas.DataFrame.unstack, level=level, fill_value=fill_value
         )
-        return self.__constructor__(new_modin_frame)
 
     # Get_dummies
     def get_dummies(self, columns, **kwargs):
