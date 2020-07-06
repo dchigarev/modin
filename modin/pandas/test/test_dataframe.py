@@ -2412,7 +2412,7 @@ class TestDataFrameDefault:
         ],
     )
     @pytest.mark.parametrize(
-        "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
+        "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
     )
     def test_pivot_table_data(self, data, index, columns, values):
         eval_general(
@@ -2421,16 +2421,15 @@ class TestDataFrameDefault:
             index=index,
             columns=columns,
             values=values,
-            aggfunc=aggfunc,
             check_exception_type=None,
         )
 
     @pytest.mark.parametrize("data", [test_data_with_simple_values[0]])
     @pytest.mark.parametrize(
-        "index", [lambda df: df.columns[0], None],
+        "index", [lambda df: df.columns[0]],
     )
     @pytest.mark.parametrize(
-        "columns", [lambda df: df.columns[len(df.columns) // 2], None],
+        "columns", [lambda df: df.columns[len(df.columns) // 2]],
     )
     @pytest.mark.parametrize(
         "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
@@ -2444,7 +2443,6 @@ class TestDataFrameDefault:
         "margins", [True, False],
     )
     @pytest.mark.parametrize("margins_name", ["Custom name", None])
-    @pytest.mark.parametrize("observed", [True, False, None])
     def test_pivot_table_params(
         self,
         data,
@@ -2455,7 +2453,6 @@ class TestDataFrameDefault:
         margins,
         margins_name,
         dropna,
-        observed,
     ):
         eval_general(
             *create_test_dfs(data),
@@ -2467,7 +2464,6 @@ class TestDataFrameDefault:
             dropna=dropna,
             margins=margins,
             margins_name=margins_name,
-            observed=observed,
             check_exception_type=None,
         )
 
