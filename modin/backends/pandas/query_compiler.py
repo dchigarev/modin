@@ -1604,8 +1604,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if isinstance(mask, pandas.DataFrame):
             _mask = []
-            for col in mask.columns:
-                _mask.append(mask[col])
+            for _, col in mask.items():
+                _mask.append(col)
             mask = _mask
 
         to_group = self.drop(columns=by)
@@ -1680,7 +1680,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if isinstance(by, pandas.Index):
                 return list(by)
             return _convert_by(by)
-
+        
         index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
 
