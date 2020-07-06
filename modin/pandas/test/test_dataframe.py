@@ -2453,10 +2453,7 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize(
         "margins",
         [
-            False,
-            pytest.param(
-                True, marks=pytest.mark.xfail(reason="Not fully implemented.")
-            ),
+            True
         ],
     )
     @pytest.mark.parametrize("margins_name", ["All", "Custom name"])
