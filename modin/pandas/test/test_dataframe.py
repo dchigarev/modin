@@ -2456,8 +2456,8 @@ class TestDataFrameDefault:
             True
         ],
     )
-    @pytest.mark.parametrize("margins_name", ["All", "Custom name"])
-    @pytest.mark.parametrize("observed", [True, False, None])
+    @pytest.mark.parametrize("margins_name", ["All"])
+    @pytest.mark.parametrize("observed", [False])
     def test_pivot_table_extra(
         self,
         data,
