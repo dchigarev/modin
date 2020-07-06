@@ -1617,6 +1617,49 @@ class PandasQueryCompiler(BaseQueryCompiler):
             agg_args={},
         )
 
+    def _sorted_multi_insert(self, columns, positions):
+        assert len(columns) == len(positions)
+
+        def update_columns(new_last_name, column, prev_column):
+            if isinstance(column, pandas.MultiIndex):
+                old_label = column[0][-1]
+                last_label = prev_column[-1]
+                new_label = f"{last_label}{new_last_name}{old_label}"
+                columns = pandas.MultiIndex.from_tuples(
+                    [(*columns[:-1], new_label)], names=column.names
+                )
+            else:
+                old_label = column[0]
+                last_label = prev_column[-1]
+                new_label = f"{last_label}{new_last_name}{old_label}"
+                columns = pandas.Index([new_label], name=column.name)
+            return columns
+
+        splitter = "___splitter___:"
+        for i in range(len(columns)):
+            columns[i].columns = update_columns(
+                splitter, columns[i].columns, self.columns[positions[i] - 1]
+            )
+            positions[i] += i
+
+        inserted = self.concat(axis=1, other=columns).sort_index(axis=1)
+        new_columns = inserted.columns.values
+        for i in positions:
+            first, old_name = new_columns[i]
+            splitter_position = old_name.find(splitter)
+            assert splitter_position != -1
+
+            new_columns[i] = (
+                first,
+                old_name[splitter_position + len(splitter) :],
+            )
+
+        inserted.columns = pandas.MultiIndex.from_tuples(
+            new_columns, names=inserted.columns.names
+        )
+
+        return inserted
+
     def pivot_table(
         self,
         values,
@@ -1638,29 +1681,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns = map(__convert_by, [index, columns])
+        index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
-
-        # if columns from `keys` has NaN values
-        _keys = self.getitem_column_array(keys)
-        if _keys.isna().any().any().to_pandas().squeeze():
-            # in that case applying groupby will lose some indices, more investigations needed why,
-            # so it's default to pandas for now, possible fix:
-            # new_index = pandas.MultiIndex.from_arrays(_keys.transpose().to_numpy(), names=keys).sort_values()
-            return self.default_to_pandas(
-                pandas.DataFrame.pivot_table,
-                values=values,
-                index=index,
-                columns=columns,
-                aggfunc=aggfunc,
-                fill_value=fill_value,
-                margins=margins,
-                dropna=dropna,
-                margins_name=margins_name,
-                observed=observed,
-            )
-
-        values = __convert_by(values)
 
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
@@ -1713,44 +1735,28 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if margins:
             if isinstance(unstacked.columns, pandas.MultiIndex):
-                splitter = "___splitter___:"
                 _margins = []
                 _positions = []
-                for val, i in zip(values, np.arange(len(values))):
+                for val in values:
                     idx = unstacked.columns.get_loc(val)
                     if isinstance(idx, slice):
                         column_index = np.arange(idx.start, idx.stop)
                     else:
                         column_index = [idx]
-                    # breakpoint()
+
                     margin = unstacked.getitem_column_array(
                         key=column_index, numeric=True
                     ).apply(axis=1, func=aggfunc)
 
-                    margin_label = (
-                        val,
-                        f"{unstacked.columns[column_index[-1]][1]}{splitter}{margins_name}",
-                    )
+                    margin_label = (val, margins_name)
                     margin.columns = pandas.MultiIndex.from_tuples(
                         [margin_label], names=unstacked.columns.names
                     )
                     _margins.append(margin)
-                    _positions.append(column_index[-1] + 1 + i)
+                    _positions.append(column_index[-1] + 1)
 
-                unstacked = unstacked.concat(axis=1, other=_margins).sort_index(axis=1)
-                new_columns = unstacked.columns.values
-                for i in _positions:
-                    first, old_name = new_columns[i]
-                    splitter_position = old_name.find(splitter)
-                    assert splitter_position != -1
-
-                    new_columns[i] = (
-                        first,
-                        old_name[splitter_position + len(splitter) :],
-                    )
-
-                unstacked.columns = pandas.MultiIndex.from_tuples(
-                    new_columns, names=unstacked.columns.names
+                unstacked = unstacked._sorted_multi_insert(
+                    columns=_margins, positions=_positions
                 )
             else:
                 margin = unstacked.apply(axis=1, func=aggfunc)
