@@ -2414,16 +2414,7 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize(
         "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
     )
-    @pytest.mark.parametrize(
-        "aggfunc", [lambda df: np.mean],
-    )
-    @pytest.mark.parametrize("dropna", [True, False])
-    def test_pivot_table(self, data, index, columns, values, aggfunc, dropna):
-        # for some data from test_data_values with `dropna=False` it required extremely large amount
-        # of memory, so testing that case with more simple data
-        if not dropna and get_args_ids()[-1] != "simple":
-            return
-
+    def test_pivot_table_data(self, data, index, columns, values):
         eval_general(
             *create_test_dfs(data),
             operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
@@ -2431,16 +2422,15 @@ class TestDataFrameDefault:
             columns=columns,
             values=values,
             aggfunc=aggfunc,
-            dropna=dropna,
             check_exception_type=None,
         )
 
     @pytest.mark.parametrize("data", [test_data_with_simple_values[0]])
     @pytest.mark.parametrize(
-        "index", [lambda df: df.columns[0]],
+        "index", [lambda df: df.columns[0], None],
     )
     @pytest.mark.parametrize(
-        "columns", [lambda df: df.columns[len(df.columns) // 2]],
+        "columns", [lambda df: df.columns[len(df.columns) // 2], None],
     )
     @pytest.mark.parametrize(
         "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
@@ -2451,14 +2441,11 @@ class TestDataFrameDefault:
     )
     @pytest.mark.parametrize("dropna", [True, False])
     @pytest.mark.parametrize(
-        "margins",
-        [
-            True
-        ],
+        "margins", [True, False],
     )
-    @pytest.mark.parametrize("margins_name", ["All"])
-    @pytest.mark.parametrize("observed", [False])
-    def test_pivot_table_extra(
+    @pytest.mark.parametrize("margins_name", ["Custom name", None])
+    @pytest.mark.parametrize("observed", [True, False, None])
+    def test_pivot_table_params(
         self,
         data,
         index,

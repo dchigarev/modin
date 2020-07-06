@@ -1681,7 +1681,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 idx = self.columns.get_loc(val)
             except KeyError:
                 idx = len(self.columns)
-            
+
             # if `idx` is a slice getting stop value
             last_index = getattr(idx, "stop", idx)
 
@@ -1699,9 +1699,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 new_labels, names=self.columns.names
             )
         else:
-            margins.columns = pandas.Index(
-                new_labels, name=self.columns.name
-            )
+            margins.columns = pandas.Index(new_labels, name=self.columns.name)
 
         return {"columns": margins, "positions": positions}
 
@@ -1746,8 +1744,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return result
 
     def _add_margins(self, src, index, columns, values, aggfunc, margins_name):
-        columns_margins = self._compute_columns_margins(src, index, values, aggfunc, margins_name)
-        row_margins = self._compute_rows_margins(src, columns, values, aggfunc, margins_name)
+        columns_margins = self._compute_columns_margins(
+            src, index, values, aggfunc, margins_name
+        )
+        row_margins = self._compute_rows_margins(
+            src, columns, values, aggfunc, margins_name
+        )
 
         if isinstance(self.columns, pandas.MultiIndex):
             result = self._sorted_multi_insert(level=1, **columns_margins)
@@ -1756,7 +1758,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         result = result.concat(axis=0, other=row_margins)
         return result
-
 
     def pivot_table(
         self,
@@ -1783,7 +1784,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         keys = index + columns
 
         unique_keys = np.unique(keys)
-        unique_values = np.unique(keys+values)
+        unique_values = np.unique(keys + values)
 
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
