@@ -1609,6 +1609,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             mask = _mask
 
         to_group = self.drop(columns=by)
+        # breakpoint()
         return to_group.groupby_agg(
             by=mask,
             axis=0,
@@ -1617,48 +1618,142 @@ class PandasQueryCompiler(BaseQueryCompiler):
             agg_args={},
         )
 
-    def _sorted_multi_insert(self, columns, positions):
-        assert len(columns) == len(positions)
-
-        def update_columns(new_last_name, column, prev_column):
-            if isinstance(column, pandas.MultiIndex):
-                old_label = column[0][-1]
-                last_label = prev_column[-1]
-                new_label = f"{last_label}{new_last_name}{old_label}"
-                columns = pandas.MultiIndex.from_tuples(
-                    [(*columns[:-1], new_label)], names=column.names
-                )
-            else:
-                old_label = column[0]
-                last_label = prev_column[-1]
-                new_label = f"{last_label}{new_last_name}{old_label}"
-                columns = pandas.Index([new_label], name=column.name)
-            return columns
-
+    def _sorted_multi_insert(self, columns, positions, level):
         splitter = "___splitter___:"
-        for i in range(len(columns)):
-            columns[i].columns = update_columns(
-                splitter, columns[i].columns, self.columns[positions[i] - 1]
+
+        new_labels = []
+        for pos, col in zip(positions, columns.columns):
+            previous_label = self.columns[pos - 1]
+            new_label = (
+                (
+                    *col[:level],
+                    f"{previous_label[level]}{splitter}{col[level]}",
+                    *col[(level + 1) :],
+                )
+                if level is not None
+                else f"{previous_label}{splitter}{col}"
             )
-            positions[i] += i
+
+            new_labels.append(new_label)
+
+        if level is not None:
+            columns.columns = pandas.MultiIndex.from_tuples(
+                new_labels, names=columns.columns.names
+            )
+        else:
+            columns.columns = pandas.Index(new_labels, name=columns.columns.name)
+
+        positions = [pos + i for pos, i in zip(positions, range(len(positions)))]
 
         inserted = self.concat(axis=1, other=columns).sort_index(axis=1)
         new_columns = inserted.columns.values
         for i in positions:
-            first, old_name = new_columns[i]
-            splitter_position = old_name.find(splitter)
+            col = new_columns[i]
+            splitter_position = col[level].find(splitter)
             assert splitter_position != -1
 
             new_columns[i] = (
-                first,
-                old_name[splitter_position + len(splitter) :],
+                (
+                    *col[:level],
+                    col[level][splitter_position + len(splitter) :],
+                    *col[(level + 1) :],
+                )
+                if level is not None
+                else col[splitter_position + len(splitter) :]
             )
 
-        inserted.columns = pandas.MultiIndex.from_tuples(
-            new_columns, names=inserted.columns.names
-        )
+        if level is not None:
+            inserted.columns = pandas.MultiIndex.from_tuples(
+                new_columns, names=inserted.columns.names
+            )
+        else:
+            inserted.columns = pandas.Index(new_columns, name=inserted.columns.name)
 
         return inserted
+
+    def _compute_meta(self, margins, margins_name, values):
+        positions = []
+        new_labels = []
+
+        is_multiindex = isinstance(self.columns, pandas.MultiIndex)
+        for val in values:
+            try:
+                idx = self.columns.get_loc(val)
+            except KeyError:
+                idx = len(self.columns)
+            
+            # if `idx` is a slice getting stop value
+            last_index = getattr(idx, "stop", idx)
+
+            previous_label = self.columns[last_index - 1]
+            new_label = (
+                (previous_label[0], margins_name, *([""] * (len(previous_label) - 2)),)
+                if is_multiindex
+                else margins_name
+            )
+            positions.append(last_index)
+            new_labels.append(new_label)
+
+        if is_multiindex:
+            margins.columns = pandas.MultiIndex.from_tuples(
+                new_labels, names=self.columns.names
+            )
+        else:
+            margins.columns = pandas.Index(
+                new_labels, name=self.columns.name
+            )
+
+        return {"columns": margins, "positions": positions}
+
+    def _compute_total_margins(self, aggfunc, values, margins_name):
+        margins = self.getitem_column_array(values).apply(axis=0, func=aggfunc)
+        margins.index = [margins_name]
+        margins.index.name = self.index.name
+
+        # TODO: remove that line when #1618 will be closed
+        margins.index = margins.index
+        return margins
+
+    def _compute_columns_margins(self, src, index, values, aggfunc, margins_name):
+        to_margins_group = src.getitem_column_array(np.unique(index + values))
+        columns_margins = to_margins_group.compute_by(index, aggfunc)
+
+        return self._compute_meta(columns_margins, margins_name, values)
+
+    def _compute_rows_margins(self, src, columns, values, aggfunc, margins_name):
+        to_margins_group = src.getitem_column_array(np.unique(columns + values))
+        row_margins = to_margins_group.compute_by(columns, aggfunc)
+
+        row_margins = row_margins.unstack().transpose()
+
+        row_margins.index = [margins_name]
+        row_margins.index.name = self.index.name
+
+        # TODO: remove that line when #1618 will be closed
+        row_margins.index = row_margins.index
+
+        total_margin = src._compute_total_margins(aggfunc, values, margins_name)
+        meta_info = row_margins._compute_meta(total_margin, margins_name, values)
+
+        if isinstance(row_margins.columns, pandas.MultiIndex):
+            result = row_margins._sorted_multi_insert(level=1, **meta_info)
+        else:
+            result = row_margins.concat(axis=1, other=meta_info["columns"])
+
+        return result
+
+    def _add_margins(self, src, index, columns, values, aggfunc, margins_name):
+        columns_margins = self._compute_columns_margins(src, index, values, aggfunc, margins_name)
+        row_margins = self._compute_rows_margins(src, columns, values, aggfunc, margins_name)
+
+        if isinstance(self.columns, pandas.MultiIndex):
+            result = self._sorted_multi_insert(level=1, **columns_margins)
+        else:
+            result = self.concat(axis=1, other=columns_margins["columns"])
+
+        result = result.concat(axis=0, other=row_margins)
+        return result
+
 
     def pivot_table(
         self,
@@ -1684,19 +1779,23 @@ class PandasQueryCompiler(BaseQueryCompiler):
         index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
 
+        unique_keys = np.unique(keys)
+        unique_values = np.unique(keys+values)
+
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
         if (
             len(values)
-            and len(np.unique(keys + values)) < len(keys + values)
+            and len(unique_values) < len(keys + values)
             and len(keys + values) < len(self.columns)
         ):
             raise ValueError("Keys overlapping")
 
         if len(values):
-            to_group = self.getitem_column_array(np.unique(keys + values))
+            to_group = self.getitem_column_array(unique_values)
         else:
             to_group = self
+            values = self.columns.drop(unique_keys)
 
         agged = to_group.compute_by(keys, aggfunc)
 
@@ -1734,43 +1833,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
         unstacked = unstacked.sort_index()
 
         if margins:
-            if isinstance(unstacked.columns, pandas.MultiIndex):
-                _margins = []
-                _positions = []
-                for val in values:
-                    idx = unstacked.columns.get_loc(val)
-                    if isinstance(idx, slice):
-                        column_index = np.arange(idx.start, idx.stop)
-                    else:
-                        column_index = [idx]
-
-                    margin = unstacked.getitem_column_array(
-                        key=column_index, numeric=True
-                    ).apply(axis=1, func=aggfunc)
-
-                    margin_label = (val, margins_name)
-                    margin.columns = pandas.MultiIndex.from_tuples(
-                        [margin_label], names=unstacked.columns.names
-                    )
-                    _margins.append(margin)
-                    _positions.append(column_index[-1] + 1)
-
-                unstacked = unstacked._sorted_multi_insert(
-                    columns=_margins, positions=_positions
-                )
-            else:
-                margin = unstacked.apply(axis=1, func=aggfunc)
-                margin.columns = margins_name
-                unstacked = unstacked.concat(axis=1, other=[margin])
-
-            bottom_margin = unstacked.apply(axis=0, func=aggfunc)
-            bottom_margin.index = [margins_name]
-            bottom_margin.index.name = unstacked.index.name
-
-            # TODO: remove that line when #1618 will be closed
-            bottom_margin.index = bottom_margin.index
-
-            unstacked = unstacked.concat(axis=0, other=[bottom_margin])
+            unstacked = unstacked._add_margins(
+                self, index, columns, values, aggfunc, margins_name
+            )
 
         if fill_value:
             unstacked.fillna(value=fill_value)
