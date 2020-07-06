@@ -1740,6 +1740,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
         else:
             result = row_margins.concat(axis=1, other=meta_info["columns"])
 
+        if len(values) == 1 and isinstance(result.columns, pandas.MultiIndex):
+            result.columns = result.columns.droplevel(0)
+
         return result
 
     def _add_margins(self, src, index, columns, values, aggfunc, margins_name):
