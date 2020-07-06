@@ -57,7 +57,6 @@ from .utils import (
     int_arg_keys,
     int_arg_values,
     eval_general,
-    get_args_ids,
 )
 
 pd.DEFAULT_NPARTITIONS = 4
@@ -2397,12 +2396,7 @@ class TestDataFrameDefault:
         [
             lambda df: df.columns[0],
             lambda df: [*df.columns[0:2], *df.columns[-7:-4]],
-            pytest.param(
-                None,
-                marks=pytest.mark.xfail(
-                    reason="Bug in unstack implementation, see #1649"
-                ),
-            ),
+            None,
         ],
     )
     @pytest.mark.parametrize(
@@ -2417,26 +2411,15 @@ class TestDataFrameDefault:
         ],
     )
     @pytest.mark.parametrize(
-        "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
+        "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
     )
-    @pytest.mark.parametrize(
-        "aggfunc", [lambda df: np.mean],
-    )
-    @pytest.mark.parametrize("dropna", [True, False])
-    def test_pivot_table(self, data, index, columns, values, aggfunc, dropna):
-        # for some data from test_data_values with `dropna=False` it required extremely large amount
-        # of memory, so testing that case with more simple data
-        if not dropna and get_args_ids()[-1] != "simple":
-            return
-
+    def test_pivot_table_data(self, data, index, columns, values):
         eval_general(
             *create_test_dfs(data),
             operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
             index=index,
             columns=columns,
             values=values,
-            aggfunc=aggfunc,
-            dropna=dropna,
             check_exception_type=None,
         )
 
@@ -2456,27 +2439,11 @@ class TestDataFrameDefault:
     )
     @pytest.mark.parametrize("dropna", [True, False])
     @pytest.mark.parametrize(
-        "margins",
-        [
-            False,
-            pytest.param(
-                True, marks=pytest.mark.xfail(reason="Not fully implemented.")
-            ),
-        ],
+        "margins", [True, False],
     )
-    @pytest.mark.parametrize("margins_name", ["All", "Custom name"])
-    @pytest.mark.parametrize("observed", [True, False, None])
-    def test_pivot_table_extra(
-        self,
-        data,
-        index,
-        columns,
-        values,
-        aggfunc,
-        margins,
-        margins_name,
-        dropna,
-        observed,
+    @pytest.mark.parametrize("margins_name", ["Custom name", None])
+    def test_pivot_table_params(
+        self, data, index, columns, values, aggfunc, margins, margins_name, dropna,
     ):
         eval_general(
             *create_test_dfs(data),
@@ -2488,7 +2455,6 @@ class TestDataFrameDefault:
             dropna=dropna,
             margins=margins,
             margins_name=margins_name,
-            observed=observed,
             check_exception_type=None,
         )
 
