@@ -1594,101 +1594,71 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # END Manual Partitioning methods
 
     def compute_by(self, by, func):
-        from itertools import chain
-
-        def compute_groupby(qc, mask):
-            qc = qc.drop(columns=by)
-            return qc.groupby_agg(
-                by=mask,
-                axis=0,
-                agg_func=lambda df: df.agg(func),
-                groupby_args={},
-                agg_args={},
-            )
-
-        def grp_fn(df):
-            return list(df.values)
-
-        def resulter(df):
-            vals = [y for x in df.values for y in x]
-            if len(vals) == len(df.index):
-                vals = [vals]
-            return vals
-
         if not is_list_like(by):
             by = [by]
 
         if len(by) == 0:
             raise ValueError("No group keys passed!")
-        elif len(by) == 1:
+        else:
             mask = self.getitem_column_array(by).to_pandas().squeeze()
-            return compute_groupby(self, mask)
-        else:
-            mask = self.getitem_column_array(by).to_pandas()
-            bys = []
-            for x in mask.columns:
-                bys.append(mask[x])
-            return compute_groupby(self, bys)
 
-        subset = self.getitem_column_array(np.unique(by))
-        subset = subset.insert(
-            loc=len(subset.columns),
-            column="__index__",
-            value=np.arange(len(self.index)),
+        if isinstance(mask, pandas.DataFrame):
+            _mask = []
+            for col in mask.columns:
+                _mask.append(mask[col])
+            mask = _mask
+
+        to_group = self.drop(columns=by)
+        return to_group.groupby_agg(
+            by=mask,
+            axis=0,
+            agg_func=lambda df: df.agg(func),
+            groupby_args={},
+            agg_args={},
         )
 
-        grouped_indices = self.__constructor__(
-            subset._modin_frame._apply_full_axis(
-                1, lambda df: df.groupby(by).agg(grp_fn)
+    def _sorted_multi_insert(self, columns, positions):
+        assert len(columns) == len(positions)
+
+        def update_columns(new_last_name, column, prev_column):
+            if isinstance(column, pandas.MultiIndex):
+                old_label = column[0][-1]
+                last_label = prev_column[-1]
+                new_label = f"{last_label}{new_last_name}{old_label}"
+                columns = pandas.MultiIndex.from_tuples(
+                    [(*columns[:-1], new_label)], names=column.names
+                )
+            else:
+                old_label = column[0]
+                last_label = prev_column[-1]
+                new_label = f"{last_label}{new_last_name}{old_label}"
+                columns = pandas.Index([new_label], name=column.name)
+            return columns
+
+        splitter = "___splitter___:"
+        for i in range(len(columns)):
+            columns[i].columns = update_columns(
+                splitter, columns[i].columns, self.columns[positions[i] - 1]
             )
-        )
-        indices_to_reaggregate = grouped_indices.index[
-            grouped_indices.index.duplicated()
-        ].unique()
-        reaggregated_rows = []
+            positions[i] += i
 
-        def mapper(df):
-            for _index in indices_to_reaggregate:
-                numeric_idx = df.index.get_indexer_for([_index])
-                row = df.iloc[numeric_idx]
-                reaggregated_row = row.apply(axis=0, func=resulter)
-                reaggregated_row.index = row.index.unique()
-                reaggregated_rows.append(reaggregated_row)
+        inserted = self.concat(axis=1, other=columns).sort_index(axis=1)
+        new_columns = inserted.columns.values
+        for i in positions:
+            first, old_name = new_columns[i]
+            splitter_position = old_name.find(splitter)
+            assert splitter_position != -1
 
-            if len(indices_to_reaggregate) == len(self.index):
-                df = pandas.concat(axis=0, objs=reaggregated_rows).sort_index()
-            elif len(indices_to_reaggregate):
-                df = pandas.concat(
-                    axis=0,
-                    objs=[df.drop(index=indices_to_reaggregate), *reaggregated_rows],
-                ).sort_index()
+            new_columns[i] = (
+                first,
+                old_name[splitter_position + len(splitter) :],
+            )
 
-            return df
-
-        grouped_indices = self.__constructor__(
-            grouped_indices._modin_frame._apply_full_axis(0, mapper)
+        inserted.columns = pandas.MultiIndex.from_tuples(
+            new_columns, names=inserted.columns.names
         )
 
-        labels = grouped_indices.to_pandas().to_dict()["__index__"]
-        mask = [-1] * len(self.index)
-        for x, i in zip(labels.values(), np.arange(len(labels.keys()))):
-            if isinstance(x[0], list):
-                x = chain(*x)
-            for ind in x:
-                mask[ind] = i
-
-        grouped = compute_groupby(self, mask)
-
-        if len(by) > 1:
-            grouped.index = pandas.MultiIndex.from_tuples(labels.keys(), names=by)
-        else:
-            grouped.index = labels.keys()
-            grouped.index.name = by[0]
-
-        # TODO: remove that line when #1618 will be closed
-        grouped.index = grouped.index
-
-        return grouped.sort_index()
+        return inserted
 
     def pivot_table(
         self,
@@ -1711,29 +1681,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns = map(__convert_by, [index, columns])
+        index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
-
-        # if columns from `keys` has NaN values
-        _keys = self.getitem_column_array(keys)
-        if _keys.isna().any().any().to_pandas().squeeze():
-            # in that case applying groupby will lose some indices, more investigations needed why,
-            # so it's default to pandas for now, possible fix:
-            # new_index = pandas.MultiIndex.from_arrays(_keys.transpose().to_numpy(), names=keys).sort_values()
-            return self.default_to_pandas(
-                pandas.DataFrame.pivot_table,
-                values=values,
-                index=index,
-                columns=columns,
-                aggfunc=aggfunc,
-                fill_value=fill_value,
-                margins=margins,
-                dropna=dropna,
-                margins_name=margins_name,
-                observed=observed,
-            )
-
-        values = __convert_by(values)
 
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
@@ -1786,44 +1735,28 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if margins:
             if isinstance(unstacked.columns, pandas.MultiIndex):
-                splitter = "___splitter___:"
                 _margins = []
                 _positions = []
-                for val, i in zip(values, np.arange(len(values))):
+                for val in values:
                     idx = unstacked.columns.get_loc(val)
                     if isinstance(idx, slice):
                         column_index = np.arange(idx.start, idx.stop)
                     else:
                         column_index = [idx]
-                    # breakpoint()
+
                     margin = unstacked.getitem_column_array(
                         key=column_index, numeric=True
                     ).apply(axis=1, func=aggfunc)
 
-                    margin_label = (
-                        val,
-                        f"{unstacked.columns[column_index[-1]][1]}{splitter}{margins_name}",
-                    )
+                    margin_label = (val, margins_name)
                     margin.columns = pandas.MultiIndex.from_tuples(
                         [margin_label], names=unstacked.columns.names
                     )
                     _margins.append(margin)
-                    _positions.append(column_index[-1] + 1 + i)
+                    _positions.append(column_index[-1] + 1)
 
-                unstacked = unstacked.concat(axis=1, other=_margins).sort_index(axis=1)
-                new_columns = unstacked.columns.values
-                for i in _positions:
-                    first, old_name = new_columns[i]
-                    splitter_position = old_name.find(splitter)
-                    assert splitter_position != -1
-
-                    new_columns[i] = (
-                        first,
-                        old_name[splitter_position + len(splitter) :],
-                    )
-
-                unstacked.columns = pandas.MultiIndex.from_tuples(
-                    new_columns, names=unstacked.columns.names
+                unstacked = unstacked._sorted_multi_insert(
+                    columns=_margins, positions=_positions
                 )
             else:
                 margin = unstacked.apply(axis=1, func=aggfunc)
