@@ -35,8 +35,6 @@ from .utils import (
     test_data_keys,
     test_data_with_duplicates_values,
     test_data_with_duplicates_keys,
-    test_data_with_simple_values,
-    test_data_with_simple_keys,
     numeric_dfs,
     no_numeric_dfs,
     test_func_keys,
@@ -2388,9 +2386,7 @@ class TestDataFrameDefault:
         with pytest.warns(UserWarning):
             df.pivot(index="foo", columns="bar", values="baz")
 
-    @pytest.mark.parametrize(
-        "data", test_data_with_simple_values, ids=test_data_with_simple_keys
-    )
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
     @pytest.mark.parametrize(
         "index",
         [
@@ -2423,7 +2419,7 @@ class TestDataFrameDefault:
             check_exception_type=None,
         )
 
-    @pytest.mark.parametrize("data", [test_data_with_simple_values[0]])
+    @pytest.mark.parametrize("data", [test_data_values[0]])
     @pytest.mark.parametrize(
         "index", [lambda df: df.columns[0]],
     )

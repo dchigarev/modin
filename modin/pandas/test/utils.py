@@ -160,22 +160,6 @@ test_data_with_duplicates = {
     },
 }
 
-test_data_with_duplicates_values = list(test_data_with_duplicates.values())
-test_data_with_duplicates_keys = list(test_data_with_duplicates.keys())
-
-test_data_with_simple = test_data.copy()
-test_data_with_simple["simple"] = {
-    "A": ["one", "one", "two", "three"] * 6,
-    "B": ["A", "B", "C"] * 8,
-    "C": ["foo", "foo", "foo", "bar", "bar", "bar"] * 4,
-    "D": np.random.randn(24),
-    "E": np.random.randn(24),
-    "F": [np.datetime64(f"2013-0{i}-{j}") for i in range(1, 7) for j in range(10, 14)],
-}
-
-test_data_with_simple_values = list(test_data_with_simple.values())
-test_data_with_simple_keys = list(test_data_with_simple.keys())
-
 numeric_dfs = [
     "empty_data",
     "columns_only",
@@ -386,24 +370,6 @@ encoding_types = [
     "utf_8",
     "utf_8_sig",
 ]
-
-simple_data = {
-    "A": ["foo", "foo", "bar", "baz"] * 4,
-    "B": ["one", "one", "two", "two"] * 4,
-    "C": [
-        "small",
-        "large",
-        "large",
-        "small",
-        "small",
-        "large",
-        "small",
-        "small",
-        "large",
-    ],
-    "D": [1, 2, 2, 3, 3, 4, 5, 6, 7],
-    "E": [2, 4, 5, 5, 6, 6, 8, 9, 9],
-}
 
 
 def categories_equals(left, right):
