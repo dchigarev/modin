@@ -1593,7 +1593,30 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
-    def compute_by(self, by, func):
+    def compute_by(self, by, func, groupby_args=None, func_args=None):
+        """
+        Compute mask for groupby by column names and aggregate it
+        with passed `func`
+
+        Parameters
+        ----------
+        by : str or list of str
+            Columns to groupby
+    
+        func : str, callable, list of previous or dict
+            Aggregation function to apply
+    
+        groupby_args : dict, optional
+    
+        func_args : dict, optional
+
+        Returns
+        -------
+            New PandasQueryCompiler with result of aggregation over groupby.
+        """
+        groupby_args = {} if groupby_args is None else groupby_args
+        func_args = {} if func_args is None else func_args
+
         if not is_list_like(by):
             by = [by]
 
@@ -1609,19 +1632,65 @@ class PandasQueryCompiler(BaseQueryCompiler):
             mask = _mask
 
         to_group = self.drop(columns=by)
-        # breakpoint()
         return to_group.groupby_agg(
             by=mask,
             axis=0,
             agg_func=lambda df: df.agg(func),
-            groupby_args={},
-            agg_args={},
+            groupby_args=groupby_args,
+            agg_args=func_args,
         )
 
-    def _sorted_multi_insert(self, columns, positions, level):
-        splitter = "___splitter___:"
+    def _sorted_multi_insert(self, columns, positions, level=None):
+        """
+        Inserts `columns` at passed `positions` assuming that columns in 
+        source DataFrame is sorted by its labels.
 
+        That function only applys concat + sort_index once, which is faster
+        than inserting columns via `insert` in a for loop
+
+        Parameters
+        ----------
+        columns : PandasQueryCompiler
+            DataFrame with columns to insert
+
+        positions : list of ints
+            List of positions of every column to insert
+
+        level : int, optional
+            If columns is MultiIndex, specifies level on that columns
+            should be inserted
+
+        Returns
+        -------
+            New PandasQueryCompiler with inserted columns
+
+        Examples
+        --------
+        >>> columns.to_pandas()
+           All1  All2  All3
+        0     0     5    10
+        1     1     6    11
+        2     2     7    12
+        
+        >>> src.to_pandas()
+           a  b  c
+        0  x  i  d
+        1  y  j  c
+        2  z  k  p
+
+        >>> src._sorted_multi_insert(columns, [1, 2, 3]).to_pandas()
+           a  All1  b  All2  c  All3
+        0  x     0  i     5  d    10
+        1  y     1  j     6  c    11
+        2  z     2  k     7  p    12
+
+        """
+        splitter = "___splitter___:"
         new_labels = []
+
+        # Renaming `columns` labels by adding as a prefix previous_columns_label + splitter,
+        # so when we will concat that `columns` with `self` and then sort columns labels,
+        # we will get our `columns` exactly at that positions that specified in `positions`
         for pos, col in zip(positions, columns.columns):
             previous_label = self.columns[pos - 1]
             new_label = (
@@ -1647,9 +1716,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         inserted = self.concat(axis=1, other=columns).sort_index(axis=1)
         new_columns = inserted.columns.values
+        # Restoring old column labels
         for i in positions:
             col = new_columns[i]
-            splitter_position = col[level].find(splitter)
+            splitter_position = (col[level] if level is not None else col).find(
+                splitter
+            )
             assert splitter_position != -1
 
             new_columns[i] = (
@@ -1672,6 +1744,26 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return inserted
 
     def _compute_meta(self, margins, margins_name, values):
+        """
+        Compute positions and margin labels to insert in pivot table
+
+        Parameters
+        ----------
+        margins : PandasQueryCompiler
+            DataFrame with computed margins
+
+        margins_name : str
+        
+        values : list of str
+            Columns that used as values in pivot table
+
+        Returns
+        -------
+            dict that contains two fields:
+                "columns": margins with updated labels
+                "positions": list of ints, positions where margins
+                    should be inserted in pivot table
+        """
         positions = []
         new_labels = []
 
@@ -1705,11 +1797,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     def _compute_total_margins(self, aggfunc, values, margins_name):
         margins = self.getitem_column_array(values).apply(axis=0, func=aggfunc)
-        margins.index = [margins_name]
-        margins.index.name = self.index.name
-
-        # TODO: remove that line when #1618 will be closed
-        margins.index = margins.index
+        margins.index = pandas.Index([margins_name], name=self.index.name)
         return margins
 
     def _compute_columns_margins(self, src, index, values, aggfunc, margins_name):
@@ -1724,11 +1812,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         row_margins = row_margins.unstack().transpose()
 
-        row_margins.index = [margins_name]
-        row_margins.index.name = self.index.name
-
-        # TODO: remove that line when #1618 will be closed
-        row_margins.index = row_margins.index
+        row_margins.index = pandas.Index([margins_name], name=self.index.name)
 
         total_margin = src._compute_total_margins(aggfunc, values, margins_name)
         meta_info = row_margins._compute_meta(total_margin, margins_name, values)
@@ -1780,10 +1864,31 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns, values = map(__convert_by, [index, columns, values])
+        index, columns = map(__convert_by, [index, columns])
         keys = index + columns
 
         unique_keys = np.unique(keys)
+
+        # if columns from `keys` has NaN values
+        if self.getitem_column_array(unique_keys).isna().any().any():
+            # in that case applying any function at full axis in modin_frame
+            # leads to losing useful meta information in `get_indices`, so that
+            # brings us different result from pandas in `unstack` function,
+            # defaulting to pandas for now
+            return self.default_to_pandas(
+                pandas.DataFrame.pivot_table,
+                values=values,
+                index=index,
+                columns=columns,
+                aggfunc=aggfunc,
+                fill_value=fill_value,
+                margins=margins,
+                dropna=dropna,
+                margins_name=margins_name,
+                observed=observed,
+            )
+
+        values = __convert_by(values)
         unique_values = np.unique(keys + values)
 
         # This implementation can handle that case, but pandas raises exception.
