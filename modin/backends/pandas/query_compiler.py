@@ -1600,12 +1600,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
         if len(by) == 0:
             raise ValueError("No group keys passed!")
         else:
-            mask = self.getitem_column_array(by).to_pandas().squeeze()
+            mask = self.getitem_column_array(np.unique(by)).to_pandas().squeeze()
 
         if isinstance(mask, pandas.DataFrame):
             _mask = []
-            for _, col in mask.items():
-                _mask.append(col)
+            for col in by:
+                _mask.append(mask[col])
             mask = _mask
 
         to_group = self.drop(columns=by)
