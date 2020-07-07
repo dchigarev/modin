@@ -1602,12 +1602,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
         ----------
         by : str or list of str
             Columns to groupby
-    
+
         func : str, callable, list of previous or dict
             Aggregation function to apply
-    
+
         groupby_args : dict, optional
-    
+
         func_args : dict, optional
 
         Returns
@@ -1642,7 +1642,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     def _sorted_multi_insert(self, columns, positions, level=None):
         """
-        Inserts `columns` at passed `positions` assuming that columns in 
+        Inserts `columns` at passed `positions` assuming that columns in
         source DataFrame is sorted by its labels.
 
         That function only applys concat + sort_index once, which is faster
@@ -1671,7 +1671,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         0     0     5    10
         1     1     6    11
         2     2     7    12
-        
+
         >>> src.to_pandas()
            a  b  c
         0  x  i  d
@@ -1753,7 +1753,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             DataFrame with computed margins
 
         margins_name : str
-        
+
         values : list of str
             Columns that used as values in pivot table
 
