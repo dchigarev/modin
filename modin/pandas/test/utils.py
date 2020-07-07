@@ -160,6 +160,9 @@ test_data_with_duplicates = {
     },
 }
 
+test_data_with_duplicates_values = list(test_data_with_duplicates.values())
+test_data_with_duplicates_keys = list(test_data_with_duplicates.keys())
+
 numeric_dfs = [
     "empty_data",
     "columns_only",
