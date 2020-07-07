@@ -57,7 +57,6 @@ from .utils import (
     int_arg_keys,
     int_arg_values,
     eval_general,
-    get_args_ids,
 )
 
 pd.DEFAULT_NPARTITIONS = 4
@@ -2444,15 +2443,7 @@ class TestDataFrameDefault:
     )
     @pytest.mark.parametrize("margins_name", ["Custom name", None])
     def test_pivot_table_params(
-        self,
-        data,
-        index,
-        columns,
-        values,
-        aggfunc,
-        margins,
-        margins_name,
-        dropna,
+        self, data, index, columns, values, aggfunc, margins, margins_name, dropna,
     ):
         eval_general(
             *create_test_dfs(data),
