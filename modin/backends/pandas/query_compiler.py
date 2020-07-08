@@ -1817,7 +1817,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         margins.columns = _safe_index_creator(
             [margins_name] * len(values),
             like=self.columns[np.array(positions) - 1],
-            level=1,
+            level=bool(len(values)>1),
         )
 
         return {"columns": margins, "positions": positions}
@@ -1836,8 +1836,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
         columns_margins = to_margins_group.compute_by(
             index, aggfunc, groupby_args={"observed": observed}
         )
-
-        return self._compute_meta(columns_margins, margins_name, values)
+        
+        meta_info = self._compute_meta(columns_margins, margins_name, values)
+        result = self._sorted_multi_insert(level=1, **meta_info)
+        return result
 
     def _compute_rows_margins(
         self, src, columns, values, aggfunc, margins_name, observed
@@ -1853,19 +1855,20 @@ class PandasQueryCompiler(BaseQueryCompiler):
             [margins_name], like=self.index, positions=[0], level=0
         )
 
+        if len(values) == 1 and isinstance(row_margins.columns, pandas.MultiIndex):
+            row_margins.columns = row_margins.columns.droplevel(0)
+
         total_margin = self._compute_total_margins(src, aggfunc, values, margins_name)
         meta_info = row_margins._compute_meta(total_margin, margins_name, values)
         #breakpoint()
         result = row_margins._sorted_multi_insert(level=1, **meta_info)
-
-        if len(values) == 1 and isinstance(result.columns, pandas.MultiIndex):
-            result.columns = result.columns.droplevel(0)
 
         return result
 
     def _add_margins(
         self, src, index, columns, values, aggfunc, margins_name, observed
     ):
+        #breakpoint()
         columns_margins = self._compute_columns_margins(
             src, index, values, aggfunc, margins_name, observed
         )
@@ -1873,8 +1876,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             src, columns, values, aggfunc, margins_name, observed
         )
         #breakpoint()
-        result = self._sorted_multi_insert(level=1, **columns_margins)
-        result = result.concat(axis=0, other=row_margins)
+        result = columns_margins.concat(axis=0, other=row_margins)
         return result
 
     def pivot_table(
