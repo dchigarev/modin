@@ -144,6 +144,69 @@ def copy_df_for_func(func):
 def _safe_index_creator(
     values, like=None, level=0, positions=None, discard_bottom_levels=True
 ):
+    """
+    Creates new index from `values` with the same parameters
+    as `like` (number of levels and its names).
+
+    Parameters
+    ----------
+    values : list of str, callable
+        list of labels of new index. If callable is passed, then
+        it function will be aplied to every label in `like` (considering
+        `level` and `positions`)
+
+    like : Index, optional default None
+
+    level : int, optional default 0
+        if `like` is MultiIndex `level` parameter could be passed to
+        specify the level to where labels from `values` should be inserted
+
+    positions : list of int, optional
+        positions where transformation with indices required (applying transform
+        function from `values` or inserting labels at specified level in `like`)
+        if not specifed applies transofrmation to all `values`
+
+    discard_bottom_levels : bool, optional default True
+        in case of MultiIndex `like` should we or not discard levels
+        which number is greater than `level` parameter
+
+    Returns
+    -------
+        New created Index
+
+    Examples
+    --------
+    >>> indices
+    MultiIndex([('a', 'one', 'foo', 'zoo'),
+            ('a', 'one', 'foo', 'lol'),
+            ('a', 'one', 'bar', 'zoo'),
+            ('a', 'one', 'bar', 'lol'),
+            ('a', 'two', 'foo', 'zoo')],
+           names=['first', 'second', 'third', 'fourth'])
+
+    >>> _safe_index_creator(['margin_name'], like=indices, positions=[0], level=1)
+    MultiIndex([('a', 'margin_name', '', '')],
+            names=['first', 'second', 'third', 'fourth'])
+
+    >>> _safe_index_creator(
+            ['margin_name'],
+            like=indices,
+            positions=[0],
+            level=1,
+            discard_bottom_levels=False
+        )
+    MultiIndex([('a', 'margin_name', 'foo', 'zoo')],
+            names=['first', 'second', 'third', 'fourth'])
+
+    >>> _safe_index_creator(lambda label: label[0], like=indices, level=2, positions=[0, 2, 4])
+    MultiIndex([('a', 'one',   'f',    ''),
+            ('a', 'one', 'foo', 'lol'),
+            ('a', 'one',   'b',    ''),
+            ('a', 'one', 'bar', 'lol'),
+            ('a', 'two',   'f',    '')],
+           names=['first', 'second', 'third', 'fourth'])
+
+    """
     if like is None:
         return pandas.Index(list(values))
 
@@ -1751,12 +1814,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             f"{get_val(self.columns[pos - 1])}{splitter}{get_val(col)}"
             for pos, col in zip(positions, columns.columns)
         ]
-        # breakpoint()
+
         columns.columns = _safe_index_creator(
-            new_labels,
-            like=columns.columns,
-            level=level,
-            discard_bottom_levels=False,
+            new_labels, like=columns.columns, level=level, discard_bottom_levels=False,
         )
 
         positions = [pos + i for pos, i in enumerate(positions)]
@@ -1768,7 +1828,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
             assert splitter_position != -1
             return column[splitter_position + len(splitter) :]
 
-        # breakpoint()
         # Restoring old column labels
         inserted.columns = _safe_index_creator(
             splitter_remover,
@@ -1813,11 +1872,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
             last_index = getattr(idx, "stop", idx)
             positions.append(last_index)
 
-        # breakpoint()
         margins.columns = _safe_index_creator(
             [margins_name] * len(values),
             like=self.columns[np.array(positions) - 1],
-            level=bool(len(values)>1),
+            level=bool(len(values) > 1),
         )
 
         return {"columns": margins, "positions": positions}
@@ -1836,7 +1894,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         columns_margins = to_margins_group.compute_by(
             index, aggfunc, groupby_args={"observed": observed}
         )
-        
         meta_info = self._compute_meta(columns_margins, margins_name, values)
         result = self._sorted_multi_insert(level=1, **meta_info)
         return result
@@ -1849,8 +1906,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             columns, aggfunc, groupby_args={"observed": observed}
         )
 
-        row_margins = row_margins.unstack(level=[i for i in range(len(columns))]).transpose()
-        #breakpoint()
+        row_margins = row_margins.unstack(
+            level=[i for i in range(len(columns))]
+        ).transpose()
         row_margins.index = _safe_index_creator(
             [margins_name], like=self.index, positions=[0], level=0
         )
@@ -1875,7 +1933,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         row_margins = self._compute_rows_margins(
             src, columns, values, aggfunc, margins_name, observed
         )
-        #breakpoint()
         result = columns_margins.concat(axis=0, other=row_margins)
         return result
 
