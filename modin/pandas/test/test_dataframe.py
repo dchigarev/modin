@@ -2421,7 +2421,7 @@ class TestDataFrameDefault:
 
     @pytest.mark.parametrize("data", [test_data_values[0]])
     @pytest.mark.parametrize(
-        "index", [lambda df: df.columns[0]],
+        "index", [lambda df: df.columns[0], lambda df: [*df.columns[0:2], *df.columns[-7:-4]]],
     )
     @pytest.mark.parametrize(
         "columns", [lambda df: df.columns[len(df.columns) // 2]],
