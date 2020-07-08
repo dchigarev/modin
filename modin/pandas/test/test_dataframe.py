@@ -2447,7 +2447,7 @@ class TestDataFrameDefault:
         self, data, index, columns, values, aggfunc, margins, margins_name, dropna,
     ):
         # requires too much memory
-        if dropna and (len(index) > 1 or len(columns) > 1):
+        if not dropna and (len(index) > 1 or len(columns) > 1):
             return
 
         eval_general(
