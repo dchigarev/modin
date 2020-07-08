@@ -16,6 +16,7 @@ import numpy as np
 
 from typing import Hashable, Iterable, Mapping, Optional, Union
 from pandas._typing import FrameOrSeriesUnion
+from pandas.core.dtypes.common import is_list_like
 
 from .dataframe import DataFrame
 from .series import Series
@@ -168,6 +169,7 @@ def _determine_name(objs: list, axis):
 
     # saving old name, only if index names of all objs are the same
     if np.all(names == names[0]):
-        return [names[0]] if isinstance(names[0], str) else list(names[0])
+        # we must do this check to avoid this calls `list(str_like_name)`
+        return list(names[0]) if is_list_like(names[0]) else [names[0]]
     else:
         return None
