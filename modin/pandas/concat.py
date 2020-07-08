@@ -109,10 +109,7 @@ def concat(
             new_idx_labels = {
                 k: v.index if axis == 0 else v.columns for k, v in zip(keys, objs)
             }
-<<<<<<< HEAD
             # fix of #1683 grabbed from #1684 just for tests
-=======
->>>>>>> issue-1683
             tuples = [
                 (k, *o) if isinstance(o, tuple) else (k, o)
                 for k, obj in new_idx_labels.items()
