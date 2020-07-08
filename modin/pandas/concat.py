@@ -149,7 +149,7 @@ def _determine_name(objs: list, axis):
 
     Parameters
     ----------
-    objs : list of DataFrames
+    objs : list of DataFrames or QueryCompilers
         objects to concatenate
 
     axis : int or str
@@ -158,9 +158,13 @@ def _determine_name(objs: list, axis):
     Returns
     -------
         `list` with single element - computed index name, `None` if it could not
-        be determine 
+        be determined
     """
-    names = [obj.axes[axis].names for obj in objs]
+
+    def get_names(obj):
+        return obj.columns.names if axis else obj.index.names
+
+    names = [get_names(obj) for obj in objs]
 
     # saving old name, only if index names of all objs are the same
     if len(np.unique(names)) == 1:
