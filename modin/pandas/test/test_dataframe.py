@@ -2416,7 +2416,7 @@ class TestDataFrameDefault:
             index=index,
             columns=columns,
             values=values,
-            #check_exception_type=None,
+            check_exception_type=None,
         )
 
     @pytest.mark.parametrize("data", [test_data_values[0]])
@@ -2459,7 +2459,6 @@ class TestDataFrameDefault:
             margins=True,
             margins_name=margins_name,
             observed=observed,
-            #check_exception_type=None,
         )
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
@@ -2471,7 +2470,6 @@ class TestDataFrameDefault:
             columns=lambda df: df.columns[1],
             values=lambda df: df.columns[-1],
             dropna=False,
-            #check_exception_type=None,
         )
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)

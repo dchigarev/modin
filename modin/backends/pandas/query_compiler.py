@@ -1964,6 +1964,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
         if len(unique_keys) == 0:
             raise ValueError("No group keys passed!")
 
+        if margins and not isinstance(margins_name, str):
+            raise ValueError(f"Margins name must be a string, {type(margins_name)} passed.")
+
         # if columns from `keys` has NaN values
         if (
             self.getitem_column_array(unique_keys)
