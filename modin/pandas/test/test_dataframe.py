@@ -2467,7 +2467,7 @@ class TestDataFrameDefault:
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
     @pytest.mark.parametrize("dropna", [True, False])
-    def test_pivot_table_dropna(self, data, index, columns, values, dropna):
+    def test_pivot_table_dropna(self, data, dropna):
         eval_general(
             *create_test_dfs(data),
             operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
