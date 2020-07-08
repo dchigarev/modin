@@ -2421,10 +2421,21 @@ class TestDataFrameDefault:
 
     @pytest.mark.parametrize("data", [test_data_values[0]])
     @pytest.mark.parametrize(
-        "index", [lambda df: df.columns[0], lambda df: [*df.columns[0:2], *df.columns[-7:-4]]],
+        "index",
+        [
+            lambda df: df.columns[0],
+            lambda df: [df.columns[0], df.columns[len(df.columns) // 2 - 1]],
+        ],
     )
     @pytest.mark.parametrize(
-        "columns", [lambda df: df.columns[len(df.columns) // 2]],
+        "columns",
+        [
+            lambda df: df.columns[len(df.columns) // 2],
+            lambda df: [
+                *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
+                df.columns[-7],
+            ],
+        ],
     )
     @pytest.mark.parametrize(
         "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
@@ -2433,13 +2444,10 @@ class TestDataFrameDefault:
         "aggfunc",
         [["mean", "sum"], lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"}],
     )
-    @pytest.mark.parametrize("dropna", [True, False])
-    @pytest.mark.parametrize(
-        "margins", [True, False],
-    )
     @pytest.mark.parametrize("margins_name", ["Custom name", None])
-    def test_pivot_table_params(
-        self, data, index, columns, values, aggfunc, margins, margins_name, dropna,
+    @pytest.mark.parametrize("observed", [True, False])
+    def test_pivot_table_margins(
+        self, data, index, columns, values, aggfunc, observed, margins_name,
     ):
         eval_general(
             *create_test_dfs(data),
@@ -2448,9 +2456,21 @@ class TestDataFrameDefault:
             columns=columns,
             values=values,
             aggfunc=aggfunc,
-            dropna=dropna,
-            margins=margins,
+            margins=True,
             margins_name=margins_name,
+            observed=observed,
+            check_exception_type=None,
+        )
+
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+    def test_pivot_table_dropna(self, data):
+        eval_general(
+            *create_test_dfs(data),
+            operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
+            index=lambda df: df.columns[0],
+            columns=lambda df: df.columns[1],
+            values=lambda df: df.columns[-1],
+            dropna=False,
             check_exception_type=None,
         )
 
