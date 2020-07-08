@@ -35,8 +35,6 @@ from .utils import (
     test_data_keys,
     test_data_with_duplicates_values,
     test_data_with_duplicates_keys,
-    test_data_with_simple_values,
-    test_data_with_simple_keys,
     numeric_dfs,
     no_numeric_dfs,
     test_func_keys,
@@ -2446,12 +2444,10 @@ class TestDataFrameDefault:
         "aggfunc",
         [["mean", "sum"], lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"}],
     )
-    @pytest.mark.parametrize(
-        "margins", [True, False],
-    )
     @pytest.mark.parametrize("margins_name", ["Custom name", None])
-    def test_pivot_table_params(
-        self, data, index, columns, values, aggfunc, margins, margins_name,
+    @pytest.mark.parametrize("observed", [True, False])
+    def test_pivot_table_margins(
+        self, data, index, columns, values, aggfunc, observed, margins_name,
     ):
         eval_general(
             *create_test_dfs(data),
@@ -2460,13 +2456,13 @@ class TestDataFrameDefault:
             columns=columns,
             values=values,
             aggfunc=aggfunc,
-            margins=margins,
+            margins=True,
             margins_name=margins_name,
+            observed=observed,
             check_exception_type=None,
         )
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
-    @pytest.mark.parametrize("dropna", [True, False])
     def test_pivot_table_dropna(self, data, dropna):
         eval_general(
             *create_test_dfs(data),
@@ -2474,7 +2470,7 @@ class TestDataFrameDefault:
             index=lambda df: df.columns[0],
             columns=lambda df: df.columns[1],
             values=lambda df: df.columns[-1],
-            dropna=dropna,
+            dropna=True,
             check_exception_type=None,
         )
 
