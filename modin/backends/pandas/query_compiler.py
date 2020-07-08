@@ -1754,7 +1754,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         # breakpoint()
         columns.columns = _safe_index_creator(
             new_labels,
-            like=self.columns[np.array(positions) - 1],
+            like=columns.columns,
             level=level,
             discard_bottom_levels=False,
         )
@@ -1847,15 +1847,15 @@ class PandasQueryCompiler(BaseQueryCompiler):
             columns, aggfunc, groupby_args={"observed": observed}
         )
 
-        row_margins = row_margins.unstack().transpose()
-
+        row_margins = row_margins.unstack(level=[i for i in range(len(columns))]).transpose()
+        #breakpoint()
         row_margins.index = _safe_index_creator(
             [margins_name], like=self.index, positions=[0], level=0
         )
 
         total_margin = self._compute_total_margins(src, aggfunc, values, margins_name)
         meta_info = row_margins._compute_meta(total_margin, margins_name, values)
-        # breakpoint()
+        #breakpoint()
         result = row_margins._sorted_multi_insert(level=1, **meta_info)
 
         if len(values) == 1 and isinstance(result.columns, pandas.MultiIndex):
@@ -1872,7 +1872,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         row_margins = self._compute_rows_margins(
             src, columns, values, aggfunc, margins_name, observed
         )
-
+        #breakpoint()
         result = self._sorted_multi_insert(level=1, **columns_margins)
         result = result.concat(axis=0, other=row_margins)
         return result
@@ -1983,6 +1983,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
         unstacked = unstacked.sort_index()
+        unstacked = unstacked.sort_index(axis=1)
 
         if margins:
             unstacked = unstacked._add_margins(
