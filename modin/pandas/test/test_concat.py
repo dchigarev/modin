@@ -45,6 +45,17 @@ def generate_dfs():
     return df, df2
 
 
+def generate_multiindex_dfs():
+    def generate_multiindex(index):
+        return pandas.MultiIndex.from_tuples(
+            [("a", x) for x in index.values], names=["name1", "name2"]
+        )
+
+    df1, df2 = generate_dfs()
+    df1.columns, df2.columns = map(generate_multiindex, [df1.columns, df2.columns])
+    return df1, df2
+
+
 def generate_none_dfs():
     df = pandas.DataFrame(
         {
@@ -206,4 +217,16 @@ def test_concat_with_empty_frame():
     df_equals(
         pd.concat([modin_empty_df, modin_row]),
         pandas.concat([pandas_empty_df, pandas_row]),
+    )
+
+
+def test_concat_multiindex():
+    pd_df1, pd_df2 = generate_multiindex_dfs()
+    md_df1, md_df2 = map(from_pandas, [pd_df1, pd_df2])
+
+    keys = ["first", "second"]
+
+    df_equals(
+        pd.concat([md_df1, md_df2], keys=keys, axis=1),
+        pandas.concat([pd_df1, pd_df2], keys=keys, axis=1),
     )
