@@ -117,7 +117,7 @@ def concat(
             ]
             new_idx = pandas.MultiIndex.from_tuples(tuples)
             old_name = _determine_name(objs, axis)
-            if old_name:
+            if old_name is not None:
                 new_idx.names = [None] + old_name
     else:
         new_idx = None
