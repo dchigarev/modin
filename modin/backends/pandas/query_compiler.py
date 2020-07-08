@@ -1788,15 +1788,23 @@ class PandasQueryCompiler(BaseQueryCompiler):
         margins.index = pandas.Index([margins_name], name=self.index.name)
         return margins
 
-    def _compute_columns_margins(self, src, index, values, aggfunc, margins_name):
+    def _compute_columns_margins(
+        self, src, index, values, aggfunc, margins_name, observed
+    ):
         to_margins_group = src.getitem_column_array(np.unique(index + values))
-        columns_margins = to_margins_group.compute_by(index, aggfunc)
+        columns_margins = to_margins_group.compute_by(
+            index, aggfunc, groupby_args={"observed": observed}
+        )
 
         return self._compute_meta(columns_margins, margins_name, values)
 
-    def _compute_rows_margins(self, src, columns, values, aggfunc, margins_name):
+    def _compute_rows_margins(
+        self, src, columns, values, aggfunc, margins_name, observed
+    ):
         to_margins_group = src.getitem_column_array(np.unique(columns + values))
-        row_margins = to_margins_group.compute_by(columns, aggfunc)
+        row_margins = to_margins_group.compute_by(
+            columns, aggfunc, groupby_args={"observed": observed}
+        )
 
         row_margins = row_margins.unstack().transpose()
 
@@ -1812,19 +1820,17 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         return result
 
-    def _add_margins(self, src, index, columns, values, aggfunc, margins_name):
+    def _add_margins(
+        self, src, index, columns, values, aggfunc, margins_name, observed
+    ):
         columns_margins = self._compute_columns_margins(
-            src, index, values, aggfunc, margins_name
+            src, index, values, aggfunc, margins_name, observed
         )
         row_margins = self._compute_rows_margins(
-            src, columns, values, aggfunc, margins_name
+            src, columns, values, aggfunc, margins_name, observed
         )
 
-        if isinstance(self.columns, pandas.MultiIndex):
-            result = self._sorted_multi_insert(level=1, **columns_margins)
-        else:
-            result = self.concat(axis=1, other=columns_margins["columns"])
-
+        result = self._sorted_multi_insert(level=1, **columns_margins)
         result = result.concat(axis=0, other=row_margins)
         return result
 
@@ -1891,7 +1897,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             to_group = self
             values = self.columns.drop(unique_keys)
 
-        agged = to_group.compute_by(keys, aggfunc)
+        agged = to_group.compute_by(keys, aggfunc, groupby_args={"observed": observed})
 
         if dropna:
             agged = agged.dropna(how="all")
@@ -1928,7 +1934,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if margins:
             unstacked = unstacked._add_margins(
-                self, index, columns, values, aggfunc, margins_name
+                self, index, columns, values, aggfunc, margins_name, observed
             )
 
         if fill_value:
