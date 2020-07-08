@@ -164,10 +164,10 @@ def _determine_name(objs: list, axis):
     def get_names(obj):
         return obj.columns.names if axis else obj.index.names
 
-    names = [get_names(obj) for obj in objs]
+    names = np.array([get_names(obj) for obj in objs])
 
     # saving old name, only if index names of all objs are the same
-    if len(np.unique(names)) == 1:
+    if np.all(names == names[0]):
         return [names[0]] if isinstance(names[0], str) else names[0]
     else:
         return None
