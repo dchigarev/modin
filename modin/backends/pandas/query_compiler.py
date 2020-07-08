@@ -141,10 +141,54 @@ def copy_df_for_func(func):
     return caller
 
 
-def _safe_index_creator(values, names=None):
-    index = pandas.Index(list(values))
-    index.names = names
-    return index
+def _safe_index_creator(
+    values, like=None, level=0, positions=None, discard_bottom_levels=True
+):
+    if like is None:
+        return pandas.Index(list(values))
+
+    if positions is None:
+        positions = np.arange(len(like))
+
+    is_miltiindex = isinstance(like, pandas.MultiIndex)
+
+    def dummy_func(x):
+        return x
+
+    if callable(values):
+        transform_func = values
+        values = list(like)
+        if is_miltiindex:
+            for i in positions:
+                values[i] = values[i][level]
+    elif is_miltiindex:
+        transform_func = dummy_func
+    else:
+        transform_func = None
+
+    if is_miltiindex:
+        for i in positions:
+            values[i] = (
+                (
+                    *like[i][:level],
+                    transform_func(values[i]),
+                    *([""] * (len(like[i]) - level - 1)),
+                )
+                if discard_bottom_levels
+                else (
+                    *like[i][:level],
+                    transform_func(values[i]),
+                    *like[i][(level + 1) :],
+                )
+            )
+    elif transform_func:
+        for i in positions:
+            values[i] = transform_func(values[i])
+
+    new_index = pandas.Index(list(values))
+    new_index.names = like.names
+    return new_index
+
 
 class PandasQueryCompiler(BaseQueryCompiler):
     """This class implements the logic necessary for operating on partitions
@@ -1694,51 +1738,45 @@ class PandasQueryCompiler(BaseQueryCompiler):
         if all([pos == len(self.columns) for pos in positions]):
             return self.concat(axis=1, other=columns)
 
+        def get_val(value):
+            return value[level] if level is not None else value
+
         splitter = "___splitter___:"
         new_labels = []
 
         # Renaming `columns` labels by adding as a prefix previous_columns_label + splitter,
         # so when we will concat that `columns` with `self` and then sort columns labels,
         # we will get our `columns` exactly at that positions that specified in `positions`
-        for pos, col in zip(positions, columns.columns):
-            previous_label = self.columns[pos - 1]
-            new_label = (
-                (
-                    *col[:level],
-                    f"{previous_label[level]}{splitter}{col[level]}",
-                    *col[(level + 1) :],
-                )
-                if level is not None
-                else f"{previous_label}{splitter}{col}"
-            )
+        new_labels = [
+            f"{get_val(self.columns[pos - 1])}{splitter}{get_val(col)}"
+            for pos, col in zip(positions, columns.columns)
+        ]
+        # breakpoint()
+        columns.columns = _safe_index_creator(
+            new_labels,
+            like=self.columns[np.array(positions) - 1],
+            level=level,
+            discard_bottom_levels=False,
+        )
 
-            new_labels.append(new_label)
-
-        columns.columns = _safe_index_creator(new_labels, names=self.columns.names)
-
-        positions = [pos + i for pos, i in zip(positions, range(len(positions)))]
+        positions = [pos + i for pos, i in enumerate(positions)]
 
         inserted = self.concat(axis=1, other=columns).sort_index(axis=1)
-        new_columns = inserted.columns.values
-        # Restoring old column labels
-        for i in positions:
-            col = new_columns[i]
-            splitter_position = (col[level] if level is not None else col).find(
-                splitter
-            )
+
+        def splitter_remover(column):
+            splitter_position = column.find(splitter)
             assert splitter_position != -1
+            return column[splitter_position + len(splitter) :]
 
-            new_columns[i] = (
-                (
-                    *col[:level],
-                    col[level][splitter_position + len(splitter) :],
-                    *col[(level + 1) :],
-                )
-                if level is not None
-                else col[splitter_position + len(splitter) :]
-            )
-
-        inserted.columns = _safe_index_creator(new_columns, names=inserted.columns.names)
+        # breakpoint()
+        # Restoring old column labels
+        inserted.columns = _safe_index_creator(
+            splitter_remover,
+            like=inserted.columns,
+            level=level,
+            discard_bottom_levels=False,
+            positions=positions,
+        )
 
         return inserted
 
@@ -1764,9 +1802,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                     should be inserted in pivot table
         """
         positions = []
-        new_labels = []
 
-        is_multiindex = isinstance(self.columns, pandas.MultiIndex)
         for val in values:
             try:
                 idx = self.columns.get_loc(val)
@@ -1775,23 +1811,22 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
             # if `idx` is a slice getting stop value
             last_index = getattr(idx, "stop", idx)
-
-            previous_label = self.columns[last_index - 1]
-            new_label = (
-                (previous_label[0], margins_name, *([""] * (len(previous_label) - 2)),)
-                if is_multiindex
-                else margins_name
-            )
             positions.append(last_index)
-            new_labels.append(new_label)
 
-        margins.columns = _safe_index_creator(new_labels, names=self.columns.names)
+        # breakpoint()
+        margins.columns = _safe_index_creator(
+            [margins_name] * len(values),
+            like=self.columns[np.array(positions) - 1],
+            level=1,
+        )
 
         return {"columns": margins, "positions": positions}
 
-    def _compute_total_margins(self, aggfunc, values, margins_name):
-        margins = self.getitem_column_array(values).apply(axis=0, func=aggfunc)
-        margins.index = pandas.Index([margins_name], name=self.index.name)
+    def _compute_total_margins(self, src, aggfunc, values, margins_name):
+        margins = src.getitem_column_array(values).apply(axis=0, func=aggfunc)
+        margins.index = _safe_index_creator(
+            [margins_name], like=self.index, positions=[0], level=0
+        )
         return margins
 
     def _compute_columns_margins(
@@ -1814,11 +1849,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         row_margins = row_margins.unstack().transpose()
 
-        row_margins.index = pandas.Index([margins_name], name=self.index.name)
+        row_margins.index = _safe_index_creator(
+            [margins_name], like=self.index, positions=[0], level=0
+        )
 
-        total_margin = src._compute_total_margins(aggfunc, values, margins_name)
+        total_margin = self._compute_total_margins(src, aggfunc, values, margins_name)
         meta_info = row_margins._compute_meta(total_margin, margins_name, values)
-
+        # breakpoint()
         result = row_margins._sorted_multi_insert(level=1, **meta_info)
 
         if len(values) == 1 and isinstance(result.columns, pandas.MultiIndex):
@@ -1869,7 +1906,14 @@ class PandasQueryCompiler(BaseQueryCompiler):
             raise ValueError("No group keys passed!")
 
         # if columns from `keys` has NaN values
-        if self.getitem_column_array(unique_keys).isna().any().any().to_pandas().squeeze():
+        if (
+            self.getitem_column_array(unique_keys)
+            .isna()
+            .any()
+            .any()
+            .to_pandas()
+            .squeeze()
+        ):
             # in that case applying any function at full axis in modin_frame
             # leads to losing useful meta information in `get_indices`, so that
             # brings us different result from pandas in `unstack` function,
@@ -1904,7 +1948,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         else:
             to_group = self
             values = self.columns.drop(unique_keys)
-    
+
         agged = to_group.compute_by(keys, aggfunc, groupby_args={"observed": observed})
 
         if dropna:
