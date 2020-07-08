@@ -1685,6 +1685,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
         2  z     2  k     7  p    12
 
         """
+        # fastpath if we want to insert `columns` to the end of DataFrame
+        if all([pos == len(self.columns) for pos in positions]):
+            return self.concat(axis=1, other=columns)
+
         splitter = "___splitter___:"
         new_labels = []
 
@@ -1704,13 +1708,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             )
 
             new_labels.append(new_label)
-
-        if level is not None:
-            columns.columns = pandas.MultiIndex.from_tuples(
-                new_labels, names=columns.columns.names
-            )
-        else:
-            columns.columns = pandas.Index(new_labels, name=columns.columns.name)
+            columns.columns = pandas.Index(new_labels, names=columns.columns.names)
 
         positions = [pos + i for pos, i in zip(positions, range(len(positions)))]
 
@@ -1734,12 +1732,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 else col[splitter_position + len(splitter) :]
             )
 
-        if level is not None:
-            inserted.columns = pandas.MultiIndex.from_tuples(
-                new_columns, names=inserted.columns.names
-            )
-        else:
-            inserted.columns = pandas.Index(new_columns, name=inserted.columns.name)
+            inserted.columns = pandas.Index(new_columns, names=inserted.columns.names)
 
         return inserted
 
@@ -1786,12 +1779,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             positions.append(last_index)
             new_labels.append(new_label)
 
-        if is_multiindex:
-            margins.columns = pandas.MultiIndex.from_tuples(
-                new_labels, names=self.columns.names
-            )
-        else:
-            margins.columns = pandas.Index(new_labels, name=self.columns.name)
+            margins.columns = pandas.Index(new_labels, names=self.columns.names)
 
         return {"columns": margins, "positions": positions}
 
@@ -1817,10 +1805,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         total_margin = src._compute_total_margins(aggfunc, values, margins_name)
         meta_info = row_margins._compute_meta(total_margin, margins_name, values)
 
-        if isinstance(row_margins.columns, pandas.MultiIndex):
-            result = row_margins._sorted_multi_insert(level=1, **meta_info)
-        else:
-            result = row_margins.concat(axis=1, other=meta_info["columns"])
+        result = row_margins._sorted_multi_insert(level=1, **meta_info)
 
         if len(values) == 1 and isinstance(result.columns, pandas.MultiIndex):
             result.columns = result.columns.droplevel(0)
