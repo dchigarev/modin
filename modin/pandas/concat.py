@@ -168,6 +168,6 @@ def _determine_name(objs: list, axis):
 
     # saving old name, only if index names of all objs are the same
     if np.all(names == names[0]):
-        return [names[0]] if isinstance(names[0], str) else names[0]
+        return [names[0]] if isinstance(names[0], str) else list(names[0])
     else:
         return None
