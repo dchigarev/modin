@@ -2470,7 +2470,7 @@ class TestDataFrameDefault:
             index=lambda df: df.columns[0],
             columns=lambda df: df.columns[1],
             values=lambda df: df.columns[-1],
-            dropna=True,
+            dropna=False,
             check_exception_type=None,
         )
 
