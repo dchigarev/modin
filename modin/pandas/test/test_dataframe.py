@@ -2426,7 +2426,10 @@ class TestDataFrameDefault:
         "index", [lambda df: df.columns[0], lambda df: [df.columns[0], df.columns[len(df.columns) // 2 - 1]]],
     )
     @pytest.mark.parametrize(
-        "columns", [lambda df: df.columns[len(df.columns) // 2]],
+        "columns", [lambda df: df.columns[len(df.columns) // 2], lambda df: [
+                *df.columns[(len(df.columns) // 2) : (len(df.columns) // 2 + 4)],
+                df.columns[-7],
+            ]],
     )
     @pytest.mark.parametrize(
         "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
@@ -2443,6 +2446,10 @@ class TestDataFrameDefault:
     def test_pivot_table_params(
         self, data, index, columns, values, aggfunc, margins, margins_name, dropna,
     ):
+        # requires too much memory
+        if dropna and (len(index) > 1 or len(columns) > 1):
+            return
+
         eval_general(
             *create_test_dfs(data),
             operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
