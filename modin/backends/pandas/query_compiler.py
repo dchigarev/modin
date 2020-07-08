@@ -1857,11 +1857,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         index, columns = map(__convert_by, [index, columns])
         keys = index + columns
-
         unique_keys = np.unique(keys)
 
+        if len(unique_keys) == 0:
+            raise ValueError("No group keys passed!")
+
         # if columns from `keys` has NaN values
-        if self.getitem_column_array(unique_keys).isna().any().any():
+        if self.getitem_column_array(unique_keys).isna().any().any().to_pandas().squeeze():
             # in that case applying any function at full axis in modin_frame
             # leads to losing useful meta information in `get_indices`, so that
             # brings us different result from pandas in `unstack` function,
@@ -1896,7 +1898,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         else:
             to_group = self
             values = self.columns.drop(unique_keys)
-
+    
         agged = to_group.compute_by(keys, aggfunc, groupby_args={"observed": observed})
 
         if dropna:
