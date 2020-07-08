@@ -141,6 +141,11 @@ def copy_df_for_func(func):
     return caller
 
 
+def _safe_index_creator(values, names=None):
+    index = pandas.Index(list(values))
+    index.names = names
+    return index
+
 class PandasQueryCompiler(BaseQueryCompiler):
     """This class implements the logic necessary for operating on partitions
         with a Pandas backend. This logic is specific to Pandas."""
@@ -1708,7 +1713,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
             )
 
             new_labels.append(new_label)
-            columns.columns = pandas.Index(new_labels, names=columns.columns.names)
+
+        columns.columns = _safe_index_creator(new_labels, names=self.columns.names)
 
         positions = [pos + i for pos, i in zip(positions, range(len(positions)))]
 
@@ -1732,7 +1738,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 else col[splitter_position + len(splitter) :]
             )
 
-            inserted.columns = pandas.Index(new_columns, names=inserted.columns.names)
+        inserted.columns = _safe_index_creator(new_columns, names=inserted.columns.names)
 
         return inserted
 
@@ -1779,7 +1785,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             positions.append(last_index)
             new_labels.append(new_label)
 
-            margins.columns = pandas.Index(new_labels, names=self.columns.names)
+        margins.columns = _safe_index_creator(new_labels, names=self.columns.names)
 
         return {"columns": margins, "positions": positions}
 
