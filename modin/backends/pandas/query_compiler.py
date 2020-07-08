@@ -1984,7 +1984,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 )
                 unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
-        #unstacked = unstacked.sort_index()
         unstacked = unstacked.sort_index(axis=1)
 
         if margins:
