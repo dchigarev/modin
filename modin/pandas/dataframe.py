@@ -1623,13 +1623,20 @@ class DataFrame(BasePandasDataset):
                 observed=observed,
             )
         )
-        if (len(result.columns) <= 1 and result.columns[0] == 0) or (
-            len(result.index) <= 1 and result.index[0] == 0
+        if (
+            len(result.columns) == 1
+            and result.columns[0] == 0
+            and isinstance(result.columns, pandas.RangeIndex)
+        ) or (
+            len(result.index) == 1
+            and result.index[0] == 0
+            and isinstance(result.index, pandas.RangeIndex)
         ):
-            result = result.squeeze()
+            result = self._reduce_dimension(result._query_compiler)
             assert isinstance(result, (Series, type(self)))
             if getattr(result, "name", None) == 0:
                 result.name = None
+
         return result
 
     @property
