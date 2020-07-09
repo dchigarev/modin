@@ -1926,7 +1926,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
     def _add_margins(
         self, src, index, columns, values, aggfunc, margins_name, observed
     ):
-        #breakpoint()
+        if not isinstance(margins_name, str):
+            raise ValueError(f"Margins name must be a string, {type(margins_name)} passed.")
+
         columns_margins = self._compute_columns_margins(
             src, index, values, aggfunc, margins_name, observed
         )
@@ -1963,9 +1965,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if len(unique_keys) == 0:
             raise ValueError("No group keys passed!")
-
-        if margins and not isinstance(margins_name, str):
-            raise ValueError(f"Margins name must be a string, {type(margins_name)} passed.")
 
         # if columns from `keys` has NaN values
         if (
