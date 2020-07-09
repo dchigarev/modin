@@ -1590,7 +1590,7 @@ class DataFrame(BasePandasDataset):
     ):
         from .concat import concat
 
-        if is_list_like(aggfunc):
+        if is_list_like(aggfunc) and not is_dict_like(aggfunc):
             to_concat = []
             keys = []
             for func in aggfunc:
