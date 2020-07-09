@@ -55,6 +55,7 @@ from .utils import (
     int_arg_keys,
     int_arg_values,
     eval_general,
+    df_equals_with_types,
 )
 
 pd.DEFAULT_NPARTITIONS = 4
@@ -2417,6 +2418,7 @@ class TestDataFrameDefault:
             columns=columns,
             values=values,
             check_exception_type=None,
+            comparator=df_equals_with_types,
         )
 
     @pytest.mark.parametrize("data", [test_data_values[0]])
@@ -2459,6 +2461,7 @@ class TestDataFrameDefault:
             margins=True,
             margins_name=margins_name,
             observed=observed,
+            comparator=df_equals_with_types,
         )
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
@@ -2470,6 +2473,7 @@ class TestDataFrameDefault:
             columns=lambda df: df.columns[1],
             values=lambda df: df.columns[-1],
             dropna=False,
+            comparator=df_equals_with_types,
         )
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)

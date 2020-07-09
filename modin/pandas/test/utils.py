@@ -607,3 +607,22 @@ def get_args_ids():
     slice_first = raw_args[0].find("[")
     raw_args[0] = raw_args[0][slice_first + 1 :]
     return raw_args
+
+
+def df_equals_with_types(md_df, pd_df):
+    assert isinstance(
+        md_df, (pd.DataFrame, pd.Series)
+    ), f"md_df have unexcepted type: {type(md_df)}"
+    assert isinstance(
+        pd_df, (pandas.DataFrame, pandas.Series)
+    ), f"pd_df have unexcepted type: {type(pd_df)}"
+
+    if not (
+        (isinstance(md_df, pd.DataFrame) and isinstance(pd_df, pandas.DataFrame))
+        or (isinstance(md_df, pd.Series) and isinstance(pd_df, pandas.Series))
+    ):
+        raise AssertionError(
+            f"DataFrame types is incomparable. md_df has type: {type(md_df)} and pd_df: {type(pd_df)}"
+        )
+
+    return df_equals(md_df, pd_df)
