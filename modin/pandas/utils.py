@@ -14,6 +14,7 @@
 import pandas
 import numpy as np
 
+
 def from_non_pandas(df, index, columns, dtype):
     from modin.data_management.dispatcher import EngineDispatcher
 
