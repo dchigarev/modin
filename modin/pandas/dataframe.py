@@ -1626,7 +1626,7 @@ class DataFrame(BasePandasDataset):
         if (len(result.columns) <= 1 and result.columns[0] == 0) or (
             len(result.index) <= 1 and result.index[0] == 0
         ):
-            result = result.squeeze()
+            result = result._reduce_dimension()
             assert isinstance(result, (Series, type(self)))
             if getattr(result, "name", None) == 0:
                 result.name = None
@@ -1992,7 +1992,7 @@ class DataFrame(BasePandasDataset):
 
     def stack(self, level=-1, dropna=True):
         return self._default_to_pandas(
-            pandas.DataFrame.stack, level=level, dropna=dropna
+            pandas.stack, level=level, dropna=dropna
         )
 
     def sub(self, other, axis="columns", level=None, fill_value=None):
