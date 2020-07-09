@@ -1623,10 +1623,16 @@ class DataFrame(BasePandasDataset):
                 observed=observed,
             )
         )
-        if (len(result.columns) <= 1 and result.columns[0] == 0) or (
-            len(result.index) <= 1 and result.index[0] == 0
+        if (
+            len(result.columns) == 1
+            and result.columns[0] == 0
+            and isinstance(result.columns, pandas.RangeIndex)
+        ) or (
+            len(result.index) == 1
+            and result.index[0] == 0
+            and isinstance(result.index, pandas.RangeIndex)
         ):
-            result = result._reduce_dimension()
+            result = self._reduce_dimension(result._query_compiler)
             assert isinstance(result, (Series, type(self)))
             if getattr(result, "name", None) == 0:
                 result.name = None
@@ -1991,9 +1997,7 @@ class DataFrame(BasePandasDataset):
             return self.copy()
 
     def stack(self, level=-1, dropna=True):
-        return self._default_to_pandas(
-            pandas.stack, level=level, dropna=dropna
-        )
+        return self._default_to_pandas(pandas.stack, level=level, dropna=dropna)
 
     def sub(self, other, axis="columns", level=None, fill_value=None):
         return self._binary_op(
