@@ -126,7 +126,7 @@ class DataFrameGroupBy(object):
                 }
             else:
                 if isinstance(self._by, type(self._query_compiler)):
-                    by = self._by.to_pandas().squeeze()
+                    by = self._by.to_pandas().squeeze().values
                 else:
                     by = self._by
                 if self._axis == 0:
