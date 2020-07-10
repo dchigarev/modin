@@ -27,6 +27,14 @@ pd.DEFAULT_NPARTITIONS = 4
 
 
 def modin_df_almost_equals_pandas(modin_df, pandas_df):
+    md_categories = modin_df.select_dtypes("category").columns
+    pd_categories = pandas_df.select_dtypes("category").columns
+
+    assert all(md_categories == pd_categories), "Columns with categories are different"
+
+    modin_df = modin_df.select_dtypes(exclude="category")
+    pandas_df = pandas_df.select_dtypes(exclude="category")
+
     difference = to_pandas(modin_df) - pandas_df
     diff_max = difference.max()
     if isinstance(diff_max, pandas.Series):
@@ -230,7 +238,7 @@ def test_mixed_dtypes_groupby(as_index):
     ],
 )
 @pytest.mark.parametrize("as_index", [True, False])
-@pytest.mark.parametrize("col1_categories", [True, False])
+@pytest.mark.parametrize("col1_categories", [True])
 def test_simple_row_groupby(by, as_index, col1_categories):
     pandas_df = pandas.DataFrame(
         {
@@ -332,7 +340,7 @@ def test_simple_row_groupby(by, as_index, col1_categories):
         # Pandas groupby.transform does not work correctly with NaN values in grouping columns. See Pandas bug 17093.
         transform_functions = [lambda df: df + 4, lambda df: -df - 10]
         for func in transform_functions:
-            eval_transform(modin_groupby, pandas_groupby, func)
+            eval_general(modin_groupby, pandas_groupby, func)
 
     pipe_functions = [lambda dfgb: dfgb.sum()]
     for func in pipe_functions:
