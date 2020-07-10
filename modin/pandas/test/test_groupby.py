@@ -234,7 +234,8 @@ def test_mixed_dtypes_groupby(as_index):
     ],
 )
 @pytest.mark.parametrize("as_index", [True, False])
-def test_simple_row_groupby(by, as_index):
+@pytest.mark.parametrize("col1_categories", [True, False])
+def test_simple_row_groupby(by, as_index, col1_categories):
     pandas_df = pandas.DataFrame(
         {
             "col1": [0, 1, 2, 3],
@@ -244,6 +245,9 @@ def test_simple_row_groupby(by, as_index):
             "col5": [-4, -5, -6, -7],
         }
     )
+
+    if col1_categories:
+        pandas_df = pandas_df.astype({"col1": "category"})
 
     modin_df = from_pandas(pandas_df)
     n = 1
