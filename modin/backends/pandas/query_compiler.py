@@ -1197,10 +1197,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             [kwargs.get("id_vars", None), kwargs.get("value_vars", None)],
         )
 
-        id_vars = len(id_vars)
         value_vars = len(values_vars)
         if value_vars == 0:
-            value_vars = len(self.columns) - id_vars
+            value_vars = len(self.columns) - len(id_vars)
 
         shuffled = self._modin_frame._apply_full_axis(
             1, lambda df: df.melt(*args, **kwargs)
