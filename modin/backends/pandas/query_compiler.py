@@ -1190,45 +1190,42 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 x = []
             return x
 
-        unique_name = "__-index-__"
+        row_lengths = self._modin_frame._row_lengths
 
-        # inserting column to sort in a correct order futhure
-        prepaired = self.insert(
-            loc=len(self.columns), column=unique_name, value=np.arange(len(self.index))
+        id_vars, values_vars = map(
+            _convert_to_list,
+            [kwargs.get("id_vars", None), kwargs.get("value_vars", None)],
         )
 
-        id_vars = _convert_to_list(kwargs.get("id_vars", None))
-        id_vars.append(unique_name)
-        kwargs["id_vars"] = id_vars
+        id_vars = len(id_vars)
+        value_vars = len(values_vars)
+        if value_vars == 0:
+            value_vars = len(self.columns) - id_vars
 
-        shuffled = self.__constructor__(
-            prepaired._modin_frame._apply_full_axis(
-                1, lambda df: df.melt(*args, **kwargs)
-            )
+        shuffled = self._modin_frame._apply_full_axis(
+            1, lambda df: df.melt(*args, **kwargs)
         )
 
-        shuffled.index = (
-            shuffled.getitem_column_array([unique_name]).to_pandas().squeeze()
-        )
-        shuffled = shuffled.drop(columns=[unique_name])
+        def calc_range(i):
+            ranges = [
+                np.arange(
+                    i * row_lengths[j] + j * value_vars * row_lengths[j - 1],
+                    i * row_lengths[j]
+                    + j * value_vars * row_lengths[j - 1]
+                    + row_lengths[j],
+                )
+                for j in range(len(row_lengths))
+            ]
+            return np.concatenate(ranges)
 
-        shuffled = shuffled.sort_index(
-            kind="mergesort"
-        )  # we want stable sort here, so using merge sort because it is the only stable one
+        ranges = [calc_range(i) for i in range(value_vars)]
 
-        parts_amount = len(shuffled.index) // len(shuffled.index.unique())
-        idx_len = len(shuffled.index)
+        new_order = np.concatenate(ranges)
+        ordered = shuffled.reorder_labels(row_numeric_idx=new_order)
 
-        def sorter(df):
-            parts = []
-            for i in range(parts_amount):
-                part = df.iloc[np.arange(i, idx_len, parts_amount)]
-                parts.append(part)
-            return pandas.concat(axis=0, objs=parts)
+        result = self.__constructor__(ordered)
 
-        result = self.__constructor__(shuffled._modin_frame._apply_full_axis(0, sorter))
-        result = result.reset_index(drop=True)
-        return result
+        return result.reset_index(drop=True)
 
     # END Map across rows/columns
 
