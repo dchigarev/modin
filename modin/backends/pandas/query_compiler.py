@@ -1910,7 +1910,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             # level names to its indices, because sometimes index may contain
             # duplicated level names
             if nan_index is not None:
-                unstacked.index = nan_index
+                agged.index = nan_index
             unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
         else:
             unstacked = agged
