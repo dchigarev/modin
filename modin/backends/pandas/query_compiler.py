@@ -22,6 +22,7 @@ from pandas.core.base import DataError
 
 from modin.backends.base.query_compiler import BaseQueryCompiler
 from modin.error_message import ErrorMessage
+from modin.pandas.utils import _safe_index_creator
 from modin.data_management.functions import (
     FoldFunction,
     MapFunction,
@@ -141,116 +142,8 @@ def copy_df_for_func(func):
     return caller
 
 
-def _safe_index_creator(
-    values, like=None, level=0, positions=None, discard_bottom_levels=True
-):
-    """
-    Creates new index from `values` with the same parameters
-    as `like` (number of levels and its names).
-
-    Parameters
-    ----------
-    values : list of str, callable
-        list of labels of new index. If callable is passed, then
-        it function will be aplied to every label in `like` (considering
-        `level` and `positions`)
-
-    like : Index, optional default None
-
-    level : int, optional default 0
-        if `like` is MultiIndex `level` parameter could be passed to
-        specify the level to where labels from `values` should be inserted
-
-    positions : list of int, optional
-        positions where transformation with indices required (applying transform
-        function from `values` or inserting labels at specified level in `like`)
-        if not specifed applies transofrmation to all `values`
-
-    discard_bottom_levels : bool, optional default True
-        in case of MultiIndex `like` should we or not discard levels
-        which number is greater than `level` parameter
-
-    Returns
-    -------
-        New created Index
-
-    Examples
-    --------
-    >>> indices
-    MultiIndex([('a', 'one', 'foo', 'zoo'),
-            ('a', 'one', 'foo', 'lol'),
-            ('a', 'one', 'bar', 'zoo'),
-            ('a', 'one', 'bar', 'lol'),
-            ('a', 'two', 'foo', 'zoo')],
-           names=['first', 'second', 'third', 'fourth'])
-
-    >>> _safe_index_creator(['margin_name'], like=indices, positions=[0], level=1)
-    MultiIndex([('a', 'margin_name', '', '')],
-            names=['first', 'second', 'third', 'fourth'])
-
-    >>> _safe_index_creator(
-            ['margin_name'],
-            like=indices,
-            positions=[0],
-            level=1,
-            discard_bottom_levels=False
-        )
-    MultiIndex([('a', 'margin_name', 'foo', 'zoo')],
-            names=['first', 'second', 'third', 'fourth'])
-
-    >>> _safe_index_creator(lambda label: label[0], like=indices, level=2, positions=[0, 2, 4])
-    MultiIndex([('a', 'one',   'f',    ''),
-            ('a', 'one', 'foo', 'lol'),
-            ('a', 'one',   'b',    ''),
-            ('a', 'one', 'bar', 'lol'),
-            ('a', 'two',   'f',    '')],
-           names=['first', 'second', 'third', 'fourth'])
-
-    """
-    if like is None:
-        return pandas.Index(list(values))
-
-    if positions is None:
-        positions = np.arange(len(like))
-
-    is_miltiindex = isinstance(like, pandas.MultiIndex)
-
-    def dummy_func(x):
-        return x
-
-    if callable(values):
-        transform_func = values
-        values = list(like)
-        if is_miltiindex:
-            for i in positions:
-                values[i] = values[i][level]
-    elif is_miltiindex:
-        transform_func = dummy_func
-    else:
-        transform_func = None
-
-    if is_miltiindex:
-        for i in positions:
-            values[i] = (
-                (
-                    *like[i][:level],
-                    transform_func(values[i]),
-                    *([""] * (len(like[i]) - level - 1)),
-                )
-                if discard_bottom_levels
-                else (
-                    *like[i][:level],
-                    transform_func(values[i]),
-                    *like[i][(level + 1) :],
-                )
-            )
-    elif transform_func:
-        for i in positions:
-            values[i] = transform_func(values[i])
-
-    new_index = pandas.Index(list(values))
-    new_index.names = like.names
-    return new_index
+def df_to_array(df, keys):
+    return [df[key] for key in keys]
 
 
 class PandasQueryCompiler(BaseQueryCompiler):
@@ -1738,10 +1631,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             mask = self.getitem_column_array(np.unique(by)).to_pandas().squeeze()
 
         if isinstance(mask, pandas.DataFrame):
-            _mask = []
-            for col in by:
-                _mask.append(mask[col])
-            mask = _mask
+            mask = df_to_array(mask, by)
 
         to_group = self.drop(columns=by)
         return to_group.groupby_agg(
@@ -1927,7 +1817,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
         self, src, index, columns, values, aggfunc, margins_name, observed
     ):
         if not isinstance(margins_name, str):
-            raise ValueError(f"Margins name must be a string, {type(margins_name)} passed.")
+            raise ValueError(
+                f"Margins name must be a string, {type(margins_name)} passed."
+            )
 
         columns_margins = self._compute_columns_margins(
             src, index, values, aggfunc, margins_name, observed
@@ -1959,41 +1851,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns = map(__convert_by, [index, columns])
+        index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
         unique_keys = np.unique(keys)
+        unique_values = np.unique(keys + values)
 
         if len(unique_keys) == 0:
             raise ValueError("No group keys passed!")
-
-        # if columns from `keys` has NaN values
-        if (
-            self.getitem_column_array(unique_keys)
-            .isna()
-            .any()
-            .any()
-            .to_pandas()
-            .squeeze()
-        ):
-            # in that case applying any function at full axis in modin_frame
-            # leads to losing useful meta information in `get_indices`, so that
-            # brings us different result from pandas in `unstack` function,
-            # defaulting to pandas for now
-            return self.default_to_pandas(
-                pandas.DataFrame.pivot_table,
-                values=values,
-                index=index,
-                columns=columns,
-                aggfunc=aggfunc,
-                fill_value=fill_value,
-                margins=margins,
-                dropna=dropna,
-                margins_name=margins_name,
-                observed=observed,
-            )
-
-        values = __convert_by(values)
-        unique_values = np.unique(keys + values)
 
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
@@ -2010,15 +1874,39 @@ class PandasQueryCompiler(BaseQueryCompiler):
             to_group = self
             values = self.columns.drop(unique_keys)
 
+        # if columns from `keys` has NaN values
+        keys_columns = self.getitem_column_array(unique_keys)
+        if keys_columns.isna().any().any().to_pandas().squeeze():
+            # in that case applying any function at full axis in modin_frame
+            # leads to losing useful meta information in `get_indices`, so that
+            # brings us different result from pandas in `unstack` function,
+            # so building correct index by itself
+            keys_columns = keys_columns.to_pandas().squeeze()
+            index_array = df_to_array(keys_columns, keys)
+
+            nan_index = (
+                pandas.MultiIndex.from_arrays(index_array)
+                .unique()
+                .dropna()
+                .sort_values()
+            )
+        else:
+            nan_index = None
+
         agged = to_group.compute_by(keys, aggfunc, groupby_args={"observed": observed})
 
         if dropna:
             agged = agged.dropna(how="all")
+            # when some row was droped in the result of `dropna`
+            if nan_index and len(nan_index) > len(agged.index):
+                nan_index = nan_index.drop(nan_index.difference(agged.index))
 
         if isinstance(agged.index, pandas.MultiIndex):
             # that line means agged.unstack(level=columns), we must translate
             # level names to its indices, because sometimes index may contain
             # duplicated level names
+            if nan_index:
+                unstacked.index = nan_index
             unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
         else:
             unstacked = agged

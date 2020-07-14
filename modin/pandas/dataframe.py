@@ -1636,6 +1636,7 @@ class DataFrame(BasePandasDataset):
             assert isinstance(result, (Series, type(self)))
             if getattr(result, "name", None) == 0:
                 result.name = None
+
         return result
 
     @property
