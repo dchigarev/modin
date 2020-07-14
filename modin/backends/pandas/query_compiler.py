@@ -623,9 +623,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
             return sort_index_for_equal_values(result, ascending)
 
-        return MapReduceFunction.register(map_func, reduce_func, preserve_index=False)(
-            self, **kwargs
-        )
+        return MapReduceFunction.register(map_func, reduce_func)(self, **kwargs)
 
     # END MapReduce operations
 
@@ -1604,6 +1602,20 @@ class PandasQueryCompiler(BaseQueryCompiler):
             axis, lambda df: groupby_agg_builder(df)
         )
         result = self.__constructor__(new_modin_frame)
+
+        # that means that exception in `compute_groupby` was raised
+        # in every partition, so we also should raise it
+        if len(result.columns) == 0 and len(self.columns) != 0:
+            # determening type of raised exception by applying `aggfunc`
+            # to empty DataFrame
+            try:
+                agg_func(
+                    pandas.DataFrame(index=[1], columns=[1]).groupby(level=0),
+                    **agg_args
+                )
+            except Exception as e:
+                raise type(e)("No numeric types to aggregate.")
+
         # Reset `as_index` because it was edited inplace.
         groupby_args["as_index"] = as_index
         if as_index:

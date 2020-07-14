@@ -1353,9 +1353,14 @@ class BasePandasFrame(object):
                 df = pandas.DataFrame(columns=self.columns)
             else:
                 df = pandas.DataFrame(columns=self.columns, index=self.index)
+<<<<<<< HEAD
         df.index.name = self.index.name
         # df.index = self.index
         # df.columns = self.columns
+=======
+        df.index = self.index
+        df.columns = self.columns
+>>>>>>> to_pandas-bugfix
         return df
 
     def to_numpy(self):

@@ -657,3 +657,7 @@ def df_equals_with_types(md_df, pd_df):
         )
 
     return df_equals(md_df, pd_df)
+
+
+def create_test_dfs(*args, **kwargs):
+    return pd.DataFrame(*args, **kwargs), pandas.DataFrame(*args, **kwargs)
