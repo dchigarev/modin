@@ -410,7 +410,7 @@ def test_to_numeric(data, errors, downcast):
     df_equals(modin_result, pandas_result)
 
 
-def test_to_pandas():
+def test_to_pandas_indices():
     data = test_data_values[0]
 
     md_df = pd.DataFrame(data)
