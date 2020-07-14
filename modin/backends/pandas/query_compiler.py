@@ -1875,21 +1875,25 @@ class PandasQueryCompiler(BaseQueryCompiler):
             values = self.columns.drop(unique_keys)
 
         # if columns from `keys` has NaN values
-        keys_columns = self.getitem_column_array(unique_keys)
-        if keys_columns.isna().any().any().to_pandas().squeeze():
-            # in that case applying any function at full axis in modin_frame
-            # leads to losing useful meta information in `get_indices`, so that
-            # brings us different result from pandas in `unstack` function,
-            # so building correct index by itself
-            keys_columns = keys_columns.to_pandas().squeeze()
-            index_array = df_to_array(keys_columns, keys)
+        
+        if len(unique_keys) > 1:
+            keys_columns = self.getitem_column_array(unique_keys)
+            if keys_columns.isna().any().any().to_pandas().squeeze():
+                # in that case applying any function at full axis in modin_frame
+                # leads to losing useful meta information in `get_indices`, so that
+                # brings us different result from pandas in `unstack` function,
+                # so building correct index by itself
+                keys_columns = keys_columns.to_pandas().squeeze()
+                index_array = df_to_array(keys_columns, keys)
 
-            nan_index = (
-                pandas.MultiIndex.from_arrays(index_array)
-                .unique()
-                .dropna()
-                .sort_values()
-            )
+                nan_index = (
+                    pandas.MultiIndex.from_arrays(index_array)
+                    .unique()
+                    .dropna()
+                    .sort_values()
+                )
+            else:
+                nan_index = None
         else:
             nan_index = None
 
@@ -1898,14 +1902,14 @@ class PandasQueryCompiler(BaseQueryCompiler):
         if dropna:
             agged = agged.dropna(how="all")
             # when some row was droped in the result of `dropna`
-            if nan_index and len(nan_index) > len(agged.index):
+            if nan_index is not None and len(nan_index) > len(agged.index):
                 nan_index = nan_index.drop(nan_index.difference(agged.index))
 
         if isinstance(agged.index, pandas.MultiIndex):
             # that line means agged.unstack(level=columns), we must translate
             # level names to its indices, because sometimes index may contain
             # duplicated level names
-            if nan_index:
+            if nan_index is not None:
                 unstacked.index = nan_index
             unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
         else:
