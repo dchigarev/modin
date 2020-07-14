@@ -18,9 +18,13 @@ class MapFunction(Function):
     @classmethod
     def call(cls, function, *call_args, **call_kwds):
         def caller(query_compiler, *args, **kwargs):
+            validate_index = call_kwds.pop("validate_index", True)
             return query_compiler.__constructor__(
                 query_compiler._modin_frame._map(
-                    lambda x: function(x, *args, **kwargs), *call_args, **call_kwds
+                    lambda x: function(x, *args, **kwargs),
+                    *call_args,
+                    **call_kwds,
+                    validate_index=validate_index
                 )
             )
 
