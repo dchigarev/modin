@@ -601,9 +601,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
             return sort_index_for_equal_values(result, ascending)
 
-        return MapReduceFunction.register(map_func, reduce_func, preserve_index=False)(
-            self, **kwargs
-        )
+        return MapReduceFunction.register(map_func, reduce_func)(self, **kwargs)
 
     # END MapReduce operations
 

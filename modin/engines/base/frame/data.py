@@ -1353,7 +1353,8 @@ class BasePandasFrame(object):
                 df = pandas.DataFrame(columns=self.columns)
             else:
                 df = pandas.DataFrame(columns=self.columns, index=self.index)
-        df.index.name = self.index.name
+        df.index = self.index
+        df.columns = self.columns
         return df
 
     def to_numpy(self):
