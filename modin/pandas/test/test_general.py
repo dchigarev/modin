@@ -427,7 +427,7 @@ def test_to_pandas():
     pd_df = md_df._to_pandas()
 
     for axis in [0, 1]:
-        assert md_df.axes[axis].equal(
+        assert md_df.axes[axis].equals(
             pd_df.axes[axis]
         ), f"Indices at axis {axis} are different!"
         assert md_df.axes[axis].equal_levels(
