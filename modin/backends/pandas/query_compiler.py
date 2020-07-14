@@ -1872,7 +1872,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         observed,
     ):
         assert callable(aggfunc) or isinstance(aggfunc, (str, dict))
-        # breakpoint()
+
         from pandas.core.reshape.pivot import _convert_by
 
         def __convert_by(by):
@@ -1903,13 +1903,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             to_group = self
             values = self.columns.drop(unique_keys)
 
-        # if columns from `keys` has NaN values
-
         if len(unique_keys) > 1:
             keys_columns = self.getitem_column_array(unique_keys)
-            ke = keys_columns.isna().any(preserve_index=True)
-            breakpoint()
-            ke.any()
+            # if columns from `keys` has NaN values
             if keys_columns.isna().any().any().to_pandas().squeeze():
                 # in that case applying any function at full axis in modin_frame
                 # leads to losing useful meta information in `get_indices`, so that
@@ -1946,7 +1942,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
         else:
             unstacked = agged
-        breakpoint()
+
         if not dropna:
             if isinstance(unstacked.index, pandas.MultiIndex):
                 extended_index = pandas.MultiIndex.from_product(
