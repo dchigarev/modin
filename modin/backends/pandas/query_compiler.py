@@ -1843,7 +1843,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         observed,
     ):
         assert callable(aggfunc) or isinstance(aggfunc, (str, dict))
-
+        breakpoint()
         from pandas.core.reshape.pivot import _convert_by
 
         def __convert_by(by):
@@ -1919,11 +1919,14 @@ class PandasQueryCompiler(BaseQueryCompiler):
             unstacked.columns = unstacked.columns.droplevel(0)
 
         if len(index) == 0 and len(columns) > 0:
+            is_series = True
             unstacked = unstacked.transpose()
-
-        if dropna:
-            unstacked = unstacked.dropna(axis=1, how="all")
         else:
+            is_series = False
+
+        if dropna and not is_series:
+            unstacked = unstacked.dropna(axis=1, how="all")
+        elif not dropna:
             if isinstance(unstacked.index, pandas.MultiIndex):
                 extended_index = pandas.MultiIndex.from_product(
                     unstacked.index.levels, names=unstacked.index.names
