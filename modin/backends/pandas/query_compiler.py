@@ -485,20 +485,36 @@ class PandasQueryCompiler(BaseQueryCompiler):
             edge_case = monotonic_fn(pandas.Series(edges_list))
             return [common_case and edge_case]
 
-        return MapReduceFunction.register(is_monotonic_map, is_monotonic_reduce)(self)
+        return MapReduceFunction.register(
+            is_monotonic_map, is_monotonic_reduce, preserve_index=False
+        )(self)
 
     def is_monotonic_decreasing(self):
         return self._is_monotonic(type="decreasing")
 
     is_monotonic = _is_monotonic
 
-    count = MapReduceFunction.register(pandas.DataFrame.count, pandas.DataFrame.sum)
-    max = MapReduceFunction.register(pandas.DataFrame.max, pandas.DataFrame.max)
-    min = MapReduceFunction.register(pandas.DataFrame.min, pandas.DataFrame.min)
-    sum = MapReduceFunction.register(pandas.DataFrame.sum, pandas.DataFrame.sum)
-    prod = MapReduceFunction.register(pandas.DataFrame.prod, pandas.DataFrame.prod)
-    any = MapReduceFunction.register(pandas.DataFrame.any, pandas.DataFrame.any)
-    all = MapReduceFunction.register(pandas.DataFrame.all, pandas.DataFrame.all)
+    count = MapReduceFunction.register(
+        pandas.DataFrame.count, pandas.DataFrame.sum, preserve_index=False
+    )
+    max = MapReduceFunction.register(
+        pandas.DataFrame.max, pandas.DataFrame.max, preserve_index=False
+    )
+    min = MapReduceFunction.register(
+        pandas.DataFrame.min, pandas.DataFrame.min, preserve_index=False
+    )
+    sum = MapReduceFunction.register(
+        pandas.DataFrame.sum, pandas.DataFrame.sum, preserve_index=False
+    )
+    prod = MapReduceFunction.register(
+        pandas.DataFrame.prod, pandas.DataFrame.prod, preserve_index=False
+    )
+    any = MapReduceFunction.register(
+        pandas.DataFrame.any, pandas.DataFrame.any, preserve_index=False
+    )
+    all = MapReduceFunction.register(
+        pandas.DataFrame.all, pandas.DataFrame.all, preserve_index=False
+    )
     memory_usage = MapReduceFunction.register(
         pandas.DataFrame.memory_usage,
         lambda x, *args, **kwargs: pandas.DataFrame.sum(x),
@@ -514,6 +530,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             / x.apply(lambda d: d[1]).sum(skipna=kwargs.get("skipna", True)),
             axis=kwargs.get("axis", 0),
         ),
+        preserve_index=False,
     )
 
     def value_counts(self, **kwargs):
@@ -1808,7 +1825,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         total_margin = self._compute_total_margins(src, aggfunc, values, margins_name)
         meta_info = row_margins._compute_meta(total_margin, margins_name, values)
-        #breakpoint()
+        # breakpoint()
         result = row_margins._sorted_multi_insert(level=1, **meta_info)
 
         return result
@@ -1843,7 +1860,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         observed,
     ):
         assert callable(aggfunc) or isinstance(aggfunc, (str, dict))
-        breakpoint()
+        # breakpoint()
         from pandas.core.reshape.pivot import _convert_by
 
         def __convert_by(by):
@@ -1875,9 +1892,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
             values = self.columns.drop(unique_keys)
 
         # if columns from `keys` has NaN values
-        
+
         if len(unique_keys) > 1:
             keys_columns = self.getitem_column_array(unique_keys)
+            ke = keys_columns.isna().any(preserve_index=True)
+            breakpoint()
+            ke.any()
             if keys_columns.isna().any().any().to_pandas().squeeze():
                 # in that case applying any function at full axis in modin_frame
                 # leads to losing useful meta information in `get_indices`, so that
@@ -1914,6 +1934,18 @@ class PandasQueryCompiler(BaseQueryCompiler):
             unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
         else:
             unstacked = agged
+        breakpoint()
+        if not dropna:
+            if isinstance(unstacked.index, pandas.MultiIndex):
+                extended_index = pandas.MultiIndex.from_product(
+                    unstacked.index.levels, names=unstacked.index.names
+                )
+                unstacked = unstacked.reindex(axis=0, labels=extended_index)
+            if isinstance(unstacked.columns, pandas.MultiIndex):
+                extended_columns = pandas.MultiIndex.from_product(
+                    unstacked.columns.levels, names=unstacked.columns.names
+                )
+                unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
         if len(values) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
             unstacked.columns = unstacked.columns.droplevel(0)
@@ -1926,17 +1958,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if dropna and not is_series:
             unstacked = unstacked.dropna(axis=1, how="all")
-        elif not dropna:
-            if isinstance(unstacked.index, pandas.MultiIndex):
-                extended_index = pandas.MultiIndex.from_product(
-                    unstacked.index.levels, names=unstacked.index.names
-                )
-                unstacked = unstacked.reindex(axis=0, labels=extended_index)
-            if isinstance(unstacked.columns, pandas.MultiIndex):
-                extended_columns = pandas.MultiIndex.from_product(
-                    unstacked.columns.levels, names=unstacked.columns.names
-                )
-                unstacked = unstacked.reindex(axis=1, labels=extended_columns)
 
         unstacked = unstacked.sort_index(axis=1)
 
