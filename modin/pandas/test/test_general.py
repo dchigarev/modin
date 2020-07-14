@@ -415,10 +415,10 @@ def test_to_pandas():
 
     md_df = pd.DataFrame(data)
     index = pandas.MultiIndex.from_tuples(
-        [(i, i * 2) for i in np.arange(len(md_df))], names=["A", "B"]
+        [(i, i * 2) for i in np.arange(len(md_df) + 1)], names=["A", "B"]
     ).drop(0)
     columns = pandas.MultiIndex.from_tuples(
-        [(i, i * 2) for i in np.arange(len(md_df.columns))], names=["A", "B"]
+        [(i, i * 2) for i in np.arange(len(md_df.columns) + 1)], names=["A", "B"]
     ).drop(0)
 
     md_df.index = index
