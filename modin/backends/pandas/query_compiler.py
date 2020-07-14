@@ -142,6 +142,10 @@ def copy_df_for_func(func):
     return caller
 
 
+def df_to_array(df, keys):
+    return [df[key] for key in keys]
+
+
 class PandasQueryCompiler(BaseQueryCompiler):
     """This class implements the logic necessary for operating on partitions
         with a Pandas backend. This logic is specific to Pandas."""
@@ -1627,10 +1631,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             mask = self.getitem_column_array(np.unique(by)).to_pandas().squeeze()
 
         if isinstance(mask, pandas.DataFrame):
-            _mask = []
-            for col in by:
-                _mask.append(mask[col])
-            mask = _mask
+            mask = df_to_array(mask, by)
 
         to_group = self.drop(columns=by)
         return to_group.groupby_agg(
@@ -1852,41 +1853,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return list(by)
             return _convert_by(by)
 
-        index, columns = map(__convert_by, [index, columns])
+        index, columns, values = map(__convert_by, [index, columns, values])
         keys = index + columns
         unique_keys = np.unique(keys)
+        unique_values = np.unique(keys + values)
 
         if len(unique_keys) == 0:
             raise ValueError("No group keys passed!")
-
-        # if columns from `keys` has NaN values
-        if (
-            self.getitem_column_array(unique_keys)
-            .isna()
-            .any()
-            .any()
-            .to_pandas()
-            .squeeze()
-        ):
-            # in that case applying any function at full axis in modin_frame
-            # leads to losing useful meta information in `get_indices`, so that
-            # brings us different result from pandas in `unstack` function,
-            # defaulting to pandas for now
-            return self.default_to_pandas(
-                pandas.DataFrame.pivot_table,
-                values=values,
-                index=index,
-                columns=columns,
-                aggfunc=aggfunc,
-                fill_value=fill_value,
-                margins=margins,
-                dropna=dropna,
-                margins_name=margins_name,
-                observed=observed,
-            )
-
-        values = __convert_by(values)
-        unique_values = np.unique(keys + values)
 
         # This implementation can handle that case, but pandas raises exception.
         # Emulating pandas behaviour
@@ -1903,15 +1876,39 @@ class PandasQueryCompiler(BaseQueryCompiler):
             to_group = self
             values = self.columns.drop(unique_keys)
 
+        # if columns from `keys` has NaN values
+        keys_columns = self.getitem_column_array(unique_keys)
+        if keys_columns.isna().any().any().to_pandas().squeeze():
+            # in that case applying any function at full axis in modin_frame
+            # leads to losing useful meta information in `get_indices`, so that
+            # brings us different result from pandas in `unstack` function,
+            # so building correct index by itself
+            keys_columns = keys_columns.to_pandas().squeeze()
+            index_array = df_to_array(keys_columns, keys)
+
+            nan_index = (
+                pandas.MultiIndex.from_arrays(index_array)
+                .unique()
+                .dropna()
+                .sort_values()
+            )
+        else:
+            nan_index = None
+
         agged = to_group.compute_by(keys, aggfunc, groupby_args={"observed": observed})
 
         if dropna:
             agged = agged.dropna(how="all")
+            # when some row was droped in the result of `dropna`
+            if nan_index and len(nan_index) > len(agged.index):
+                nan_index = nan_index.drop(nan_index.difference(agged.index))
 
         if isinstance(agged.index, pandas.MultiIndex):
             # that line means agged.unstack(level=columns), we must translate
             # level names to its indices, because sometimes index may contain
             # duplicated level names
+            if nan_index:
+                unstacked.index = nan_index
             unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))])
         else:
             unstacked = agged
