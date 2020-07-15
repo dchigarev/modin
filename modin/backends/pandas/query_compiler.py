@@ -1906,7 +1906,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         if len(unique_keys) > 1:
             keys_columns = self.getitem_column_array(unique_keys)
             # if columns from `keys` has NaN values
-            if keys_columns.isna().any().any().to_pandas().squeeze():
+            if keys_columns.isna().any(axis=0).any(axis=0).to_pandas().squeeze():
                 # in that case applying any function at full axis in modin_frame
                 # leads to losing useful meta information in `get_indices`, so that
                 # brings us different result from pandas in `unstack` function,
