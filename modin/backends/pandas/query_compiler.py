@@ -1476,23 +1476,35 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return result
 
     def pivot(self, index, columns, values):
-        if not isinstance(values, list):
-            values = [values]
+        from pandas.core.reshape.pivot import _convert_by
 
-        if values is not None:
+        def __convert_by(by):
+            if isinstance(by, pandas.Index):
+                return list(by)
+            return _convert_by(by)
+
+        index, columns, values = map(__convert_by, [index, columns, values])
+
+        if len(values) != 0:
             obj = self.getitem_column_array(columns + values)
         else:
             obj = self.drop(columns=index)
 
         index = self.getitem_column_array(index)
 
-        def grp_map(df):
-            return df.apply(lambda x: x.set_index(columns).T).droplevel(1)
+        def map_func(df):
+            return df.apply(lambda df: df.set_index(columns).T).droplevel(1)
 
+        # at the reduce phase we will get df with NaN values placed like this:
+        #        A    B    C 
+        # one    1  nan    3
+        # two    4    5  nan    so we want to apply `bfill` fillna method
+        # one  nan    2  nan    fo each group to get desired result
+        # two  nan  nan    6
         def reduce_func(df):
-            return df.apply(lambda x: x.fillna(method="bfill").iloc[0])
+            return df.apply(lambda df: df.fillna(method="bfill").iloc[0])
 
-        without_meta = GroupbyReduceFunction.register(grp_map, reduce_func)(
+        without_meta = GroupbyReduceFunction.register(map_func, reduce_func)(
             obj,
             by=index,
             axis=0,
