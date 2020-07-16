@@ -54,6 +54,7 @@ from .utils import (
     bool_arg_values,
     int_arg_keys,
     int_arg_values,
+    eval_general,
 )
 
 pd.DEFAULT_NPARTITIONS = 4
@@ -62,6 +63,7 @@ pd.DEFAULT_NPARTITIONS = 4
 matplotlib.use("Agg")
 
 
+<<<<<<< HEAD
 def eval_general(modin_df, pandas_df, operation, comparator=df_equals, **kwargs):
     md_kwargs, pd_kwargs = {}, {}
 
@@ -95,6 +97,8 @@ def eval_general(modin_df, pandas_df, operation, comparator=df_equals, **kwargs)
         comparator(*values)
 
 
+=======
+>>>>>>> pivot-implementation
 def eval_insert(modin_df, pandas_df, **kwargs):
     _kwargs = {"loc": 0, "col": "New column"}
     _kwargs.update(kwargs)
@@ -105,6 +109,10 @@ def eval_insert(modin_df, pandas_df, **kwargs):
         operation=lambda df, **kwargs: df.insert(**kwargs),
         **_kwargs,
     )
+
+
+def create_test_dfs(*args, **kwargs):
+    return pd.DataFrame(*args, **kwargs), pandas.DataFrame(*args, **kwargs)
 
 
 class TestDataFrameBinary:
@@ -2377,21 +2385,14 @@ class TestDataFrameDefault:
             pd.DataFrame(data).pct_change()
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
-    @pytest.mark.parametrize(
-        "index", [lambda df: df.columns[0], lambda df: df[df.columns[0]].values, None]
-    )
-    @pytest.mark.parametrize(
-        "columns", [lambda df: df.columns[len(df.columns) // 2], None]
-    )
-    @pytest.mark.parametrize(
-
-        "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
-    )
+    @pytest.mark.parametrize("index", [lambda df: df.columns[0]])
+    @pytest.mark.parametrize("columns", [lambda df: df.columns[len(df.columns) // 2]])
+    @pytest.mark.parametrize("values", [lambda df: df.columns[-1]])
     def test_pivot(self, data, index, columns, values):
         md_df, pd_df = pd.DataFrame(data), pandas.DataFrame(data)
         eval_general(
-            pd_df,
             md_df,
+            pd_df,
             lambda df, *args, **kwargs: df.pivot(*args, **kwargs),
             index=index,
             columns=columns,
@@ -5450,6 +5451,22 @@ class TestDataFrameIter:
         pandas_df = pandas.DataFrame({k: pandas.Series(v) for k, v in data.items()})
         modin_df = pd.DataFrame({k: pd.Series(v) for k, v in data.items()})
         df_equals(pandas_df, modin_df)
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            np.arange(1, 10000, dtype=np.float32),
+            [
+                pd.Series([1, 2, 3], dtype="int32"),
+                pandas.Series([4, 5, 6], dtype="int64"),
+                np.array([7, 8, 9], dtype=np.float32),
+            ],
+            pandas.Categorical([1, 2, 3, 4, 5]),
+        ],
+    )
+    def test_constructor_dtypes(self, data):
+        md_df, pd_df = create_test_dfs(data)
+        df_equals(md_df, pd_df)
 
     def test_constructor_columns_and_index(self):
         modin_df = pd.DataFrame(
