@@ -2397,6 +2397,7 @@ class TestDataFrameDefault:
             index=index,
             columns=columns,
             values=values,
+            check_exception_type=None,
         )
 
     def test_pivot_table(self):
