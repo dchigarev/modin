@@ -64,42 +64,6 @@ pd.DEFAULT_NPARTITIONS = 4
 matplotlib.use("Agg")
 
 
-<<<<<<< HEAD
-def eval_general(modin_df, pandas_df, operation, comparator=df_equals, **kwargs):
-    md_kwargs, pd_kwargs = {}, {}
-
-    def execute_callable(fn, md_kwargs={}, pd_kwargs={}):
-        try:
-            pd_result = fn(pandas_df, **pd_kwargs)
-        except Exception as e:
-            with pytest.raises(Exception):
-                # repr to force materialization
-                repr(fn(modin_df, **md_kwargs))
-        else:
-            md_result = fn(modin_df, **md_kwargs)
-            return md_result, pd_result
-
-    for key, value in kwargs.items():
-        if callable(value):
-            values = execute_callable(value)
-            # that means, that callable raised an exception
-            if values is None:
-                return
-            else:
-                md_value, pd_value = values
-        else:
-            md_value, pd_value = value, value
-
-        md_kwargs[key] = md_value
-        pd_kwargs[key] = pd_value
-
-    values = execute_callable(operation, md_kwargs=md_kwargs, pd_kwargs=pd_kwargs)
-    if values is not None:
-        comparator(*values)
-
-
-=======
->>>>>>> pivot-implementation
 def eval_insert(modin_df, pandas_df, **kwargs):
     _kwargs = {"loc": 0, "col": "New column"}
     _kwargs.update(kwargs)
