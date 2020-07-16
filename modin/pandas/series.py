@@ -113,6 +113,12 @@ class Series(BasePandasDataset):
 
     name = property(_get_name, _set_name)
     _parent = None
+    # Parent axis denotes axis that was used to select series in a parent dataframe.
+    # If _parent_axis == 0, then it means that index axis was used via df.loc[row]
+    # indexing operations and assignments should be done to rows of parent.
+    # If _parent_axis == 1 it means that column axis was used via df[column] and assignments
+    # should be done to columns of parent.
+    _parent_axis = 0
 
     def _reduce_dimension(self, query_compiler):
         return query_compiler.to_pandas().squeeze()
@@ -325,7 +331,10 @@ class Series(BasePandasDataset):
         )
         # Propagate changes back to parent so that column in dataframe had the same contents
         if self._parent is not None:
-            self._parent[self.name] = self
+            if self._parent_axis == 0:
+                self._parent.loc[self.name] = self
+            else:
+                self._parent[self.name] = self
 
     def __sub__(self, right):
         return self.sub(right)
@@ -493,9 +502,6 @@ class Series(BasePandasDataset):
             or return_type not in ["DataFrame", "Series"]
         ):
             query_compiler = super(Series, self).apply(func, *args, **kwds)
-            # Sometimes we can return a scalar here
-            if not isinstance(query_compiler, type(self._query_compiler)):
-                return query_compiler
         else:
             # handle ufuncs and lambdas
             if kwds or args and not isinstance(func, np.ufunc):
@@ -540,7 +546,29 @@ class Series(BasePandasDataset):
         return self._default_to_pandas(pandas.Series.array)
 
     def autocorr(self, lag=1):
-        return self._default_to_pandas(pandas.Series.autocorr, lag=lag)
+        """
+        Compute the lag-N autocorrelation.
+
+        This method computes the Pearson correlation between
+        the Series and its shifted self.
+
+        Parameters
+        ----------
+        lag : int, default 1
+            Number of lags to apply before performing autocorrelation.
+
+        Returns
+        -------
+        float
+            The Pearson correlation between self and self.shift(lag).
+
+        Notes
+        -----
+        If the Pearson correlation is not well defined return 'NaN'.
+
+        Autocorrelation floating point precision may slightly differ from pandas.
+        """
+        return self.corr(self.shift(lag))
 
     def between(self, left, right, inclusive=True):
         return self._default_to_pandas(
@@ -553,10 +581,84 @@ class Series(BasePandasDataset):
         )
 
     def corr(self, other, method="pearson", min_periods=None):
-        if isinstance(other, BasePandasDataset):
-            other = other._to_pandas()
-        return self._default_to_pandas(
-            pandas.Series.corr, other, method=method, min_periods=min_periods
+        """
+        Compute correlation with `other` Series, excluding missing values.
+
+        Parameters
+        ----------
+        other : Series
+            Series with which to compute the correlation.
+        method : {'pearson', 'kendall', 'spearman'} or callable
+            Method used to compute correlation:
+
+            - pearson : Standard correlation coefficient
+            - kendall : Kendall Tau correlation coefficient
+            - spearman : Spearman rank correlation
+            - callable: Callable with input two 1d ndarrays and returning a float.
+
+        min_periods : int, optional
+            Minimum number of observations needed to have a valid result.
+
+        Returns
+        -------
+        float
+            Correlation with other.
+
+        Notes
+        -----
+        Correlation floating point precision may slightly differ from pandas.
+
+        For now pearson method is available only. For other methods defaults to pandas.
+        """
+        if method == "pearson":
+            this, other = self.align(other, join="inner", copy=False)
+            this = self.__constructor__(this)
+            other = self.__constructor__(other)
+
+            if len(this) == 0:
+                return np.nan
+            if len(this) != len(other):
+                raise ValueError("Operands must have same size")
+
+            if min_periods is None:
+                min_periods = 1
+
+            valid = this.notna() & other.notna()
+            if not valid.all():
+                this = this[valid]
+                other = other[valid]
+            if len(this) < min_periods:
+                return np.nan
+
+            this = this.astype(dtype="float64")
+            other = other.astype(dtype="float64")
+            this -= this.mean()
+            other -= other.mean()
+
+            other = other.__constructor__(query_compiler=other._query_compiler.conj())
+            result = this * other / (len(this) - 1)
+            result = np.array([result.sum()])
+
+            stddev_this = ((this * this) / (len(this) - 1)).sum()
+            stddev_other = ((other * other) / (len(other) - 1)).sum()
+
+            stddev_this = np.array([np.sqrt(stddev_this)])
+            stddev_other = np.array([np.sqrt(stddev_other)])
+
+            result /= stddev_this * stddev_other
+
+            np.clip(result.real, -1, 1, out=result.real)
+            if np.iscomplexobj(result):
+                np.clip(result.imag, -1, 1, out=result.imag)
+            return result[0]
+
+        return self.__constructor__(
+            query_compiler=self._query_compiler.default_to_pandas(
+                pandas.Series.corr,
+                other._query_compiler,
+                method=method,
+                min_periods=min_periods,
+            )
         )
 
     def count(self, level=None):
@@ -932,6 +1034,44 @@ class Series(BasePandasDataset):
         """
         return Series(query_compiler=self._query_compiler.nsmallest(n=n, keep=keep))
 
+    def slice_shift(self, periods=1, axis=0):
+        """
+        Equivalent to `shift` without copying data.
+        The shifted data will not include the dropped periods and the
+        shifted axis will be smaller than the original.
+        Parameters
+        ----------
+        periods : int
+            Number of periods to move, can be positive or negative.
+        axis : int or str
+            Shift direction.
+        Returns
+        -------
+        shifted : same type as caller
+        """
+        if periods == 0:
+            return self.copy()
+
+        if axis == "index" or axis == 0:
+            if abs(periods) >= len(self.index):
+                return Series(dtype=self.dtype)
+            else:
+                if periods > 0:
+                    new_index = self.index.drop(labels=self.index[:periods])
+                    new_df = self.drop(self.index[-periods:])
+                else:
+                    new_index = self.index.drop(labels=self.index[periods:])
+                    new_df = self.drop(self.index[:-periods])
+
+                new_df.index = new_index
+                return new_df
+        else:
+            raise ValueError(
+                "No axis named {axis} for object type {type}".format(
+                    axis=axis, type=type(self)
+                )
+            )
+
     @property
     def plot(
         self,
@@ -1058,7 +1198,7 @@ class Series(BasePandasDataset):
         else:
             from .dataframe import DataFrame
 
-            result = DataFrame(self.copy()).rename(index=index).squeeze()
+            result = DataFrame(self.copy()).rename(index=index).squeeze(axis=1)
             result.name = self.name
             return result
 
@@ -1385,13 +1525,46 @@ class Series(BasePandasDataset):
     def value_counts(
         self, normalize=False, sort=True, ascending=False, bins=None, dropna=True
     ):
-        return self._default_to_pandas(
-            pandas.Series.value_counts,
-            normalize=normalize,
-            sort=sort,
-            ascending=ascending,
-            bins=bins,
-            dropna=dropna,
+        """
+        Return a Series containing counts of unique values.
+
+        The resulting object will be in descending order so that the
+        first element is the most frequently-occurring element.
+        Excludes NA values by default.
+
+        Parameters
+        ----------
+        normalize : bool, default False
+            If True then the object returned will contain the relative
+            frequencies of the unique values.
+        sort : bool, default True
+            Sort by frequencies.
+        ascending : bool, default False
+            Sort in ascending order.
+        bins : int, optional
+            Rather than count values, group them into half-open bins,
+            a convenience for ``pd.cut``, only works with numeric data.
+        dropna : bool, default True
+            Don't include counts of NaN.
+
+        Returns
+        -------
+        Series
+
+        Notes
+        -----
+        The indices of resulting object will be in descending
+        (ascending, if ascending=True) order for equal values.
+        It slightly differ from pandas where indices are located in random order.
+        """
+        return self.__constructor__(
+            query_compiler=self._query_compiler.value_counts(
+                normalize=normalize,
+                sort=sort,
+                ascending=ascending,
+                bins=bins,
+                dropna=dropna,
+            )
         )
 
     def view(self, dtype=None):
@@ -1691,7 +1864,7 @@ class DatetimeProperties(object):
 
     def to_pytimedelta(self):
         return self._query_compiler.default_to_pandas(
-            lambda df: pandas.Series.dt.to_pytimedelta(df.squeeze().dt)
+            lambda df: pandas.Series.dt.to_pytimedelta(df.squeeze(axis=1).dt)
         )
 
     @property

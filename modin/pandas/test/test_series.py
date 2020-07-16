@@ -880,10 +880,12 @@ def test_at_time():
 
 
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
-def test_autocorr(data):
-    modin_series, _ = create_test_series(data)  # noqa: F841
-    with pytest.warns(UserWarning):
-        modin_series.autocorr()
+@pytest.mark.parametrize("lag", [1, 2, 3])
+def test_autocorr(data, lag):
+    modin_series, pandas_series = create_test_series(data)
+    modin_result = modin_series.autocorr(lag=lag)
+    pandas_result = pandas_series.autocorr(lag=lag)
+    df_equals(modin_result, pandas_result)
 
 
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
@@ -1023,9 +1025,10 @@ def test_copy(data):
 
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
 def test_corr(data):
-    modin_series, _ = create_test_series(data)  # noqa: F841
-    with pytest.warns(UserWarning):
-        modin_series.corr(modin_series)
+    modin_series, pandas_series = create_test_series(data)
+    modin_result = modin_series.corr(modin_series)
+    pandas_result = pandas_series.corr(pandas_series)
+    df_equals(modin_result, pandas_result)
 
 
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
@@ -1762,19 +1765,17 @@ def test_keys(data):
 )
 @pytest.mark.parametrize("method", ["kurtosis", "kurt"])
 def test_kurt_kurtosis(data, axis, skipna, level, numeric_only, method):
+    func_kwargs = {
+        "axis": axis,
+        "skipna": skipna,
+        "level": level,
+        "numeric_only": numeric_only,
+    }
     modin_series, pandas_series = create_test_series(data)
-    try:
-        pandas_result = getattr(pandas_series, method)(
-            axis, skipna, level, numeric_only
-        )
-    except Exception as e:
-        with pytest.raises(type(e)):
-            repr(
-                getattr(modin_series, method)(axis, skipna, level, numeric_only)
-            )  # repr to force materialization
-    else:
-        modin_result = getattr(modin_series, method)(axis, skipna, level, numeric_only)
-        df_equals(modin_result, pandas_result)
+
+    eval_general(
+        modin_series, pandas_series, lambda df: df.kurtosis(**func_kwargs),
+    )
 
 
 def test_last():
@@ -2470,10 +2471,22 @@ def test_skew(data, skipna):
 
 
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
-def test_slice_shift(data):
-    modin_series, _ = create_test_series(data)  # noqa: F841
-    with pytest.warns(UserWarning):
-        modin_series.slice_shift()
+@pytest.mark.parametrize("index", ["default", "ndarray"])
+@pytest.mark.parametrize("periods", [0, 1, -1, 10, -10, 1000000000, -1000000000])
+def test_slice_shift(data, index, periods):
+    if index == "default":
+        modin_series, pandas_series = create_test_series(data)
+    elif index == "ndarray":
+        modin_series, pandas_series = create_test_series(data)
+        data_column_length = len(data[next(iter(data))])
+        index_data = np.arange(2, data_column_length + 2)
+        modin_series.index = index_data
+        pandas_series.index = index_data
+
+    df_equals(
+        modin_series.slice_shift(periods=periods),
+        pandas_series.slice_shift(periods=periods),
+    )
 
 
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
@@ -2889,12 +2902,55 @@ def test_update(data, other_data):
     df_equals(modin_series, pandas_series)
 
 
-@pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
-def test_value_counts(data):
-    modin_series, pandas_series = create_test_series(data)
+@pytest.mark.parametrize("normalize, bins, dropna", [(True, 3, False)])
+def test_value_counts(normalize, bins, dropna):
+    def sort_index_for_equal_values(result, ascending):
+        is_range = False
+        is_end = False
+        i = 0
+        new_index = np.empty(len(result), dtype=type(result.index))
+        while i < len(result):
+            j = i
+            if i < len(result) - 1:
+                while result[result.index[i]] == result[result.index[i + 1]]:
+                    i += 1
+                    if is_range is False:
+                        is_range = True
+                    if i == len(result) - 1:
+                        is_end = True
+                        break
+            if is_range:
+                k = j
+                for val in sorted(result.index[j : i + 1], reverse=not ascending):
+                    new_index[k] = val
+                    k += 1
+                if is_end:
+                    break
+                is_range = False
+            else:
+                new_index[j] = result.index[j]
+            i += 1
+        return pandas.Series(result, index=new_index)
 
-    with pytest.warns(UserWarning):
-        modin_series.value_counts()
+    # We sort indices for pandas result because of issue #1650
+    modin_series, pandas_series = create_test_series(test_data_values[0])
+    modin_result = modin_series.value_counts(normalize=normalize, ascending=False)
+    pandas_result = sort_index_for_equal_values(
+        pandas_series.value_counts(normalize=normalize, ascending=False), False
+    )
+    df_equals(modin_result, pandas_result)
+
+    modin_result = modin_series.value_counts(bins=bins, ascending=False)
+    pandas_result = sort_index_for_equal_values(
+        pandas_series.value_counts(bins=bins, ascending=False), False
+    )
+    df_equals(modin_result, pandas_result)
+
+    modin_result = modin_series.value_counts(dropna=dropna, ascending=True)
+    pandas_result = sort_index_for_equal_values(
+        pandas_series.value_counts(dropna=dropna, ascending=True), True
+    )
+    df_equals(modin_result, pandas_result)
 
 
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)

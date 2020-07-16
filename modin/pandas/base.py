@@ -577,10 +577,7 @@ class BasePandasDataset(object):
         axis = self._get_axis_number(axis)
         ErrorMessage.non_verified_udf()
         if isinstance(func, str):
-            if axis == 1:
-                kwds["axis"] = axis
-            result = self._string_function(func, *args, **kwds)
-            # Sometimes we can return a scalar here
+            result = self._query_compiler.apply(func, axis=axis, *args, **kwds)
             if isinstance(result, BasePandasDataset):
                 return result._query_compiler
             return result
@@ -1473,17 +1470,17 @@ class BasePandasDataset(object):
         Returns:
             kurtosis : Series or DataFrame (if level specified)
         """
-        if level is not None:
-            return self._default_to_pandas(
-                "kurt",
-                axis=axis,
-                skipna=skipna,
-                level=level,
-                numeric_only=numeric_only,
-                **kwargs,
-            )
-
         axis = self._get_axis_number(axis)
+        if level is not None:
+            func_kwargs = {
+                "axis": axis,
+                "skipna": skipna,
+                "level": level,
+                "numeric_only": numeric_only,
+            }
+
+            return self.apply("kurt", **func_kwargs)
+
         if numeric_only:
             self._validate_dtypes(numeric_only=True)
         return self._reduce_dimension(
@@ -2483,7 +2480,7 @@ class BasePandasDataset(object):
             # random_state that is passed in
             if isinstance(random_state, int):
                 random_num_gen = np.random.RandomState(random_state)
-            elif isinstance(random_state, np.random.randomState):
+            elif isinstance(random_state, np.random.RandomState):
                 random_num_gen = random_state
             else:
                 # random_state must be an int or a numpy RandomState object
@@ -2674,9 +2671,6 @@ class BasePandasDataset(object):
                 **kwargs,
             )
         )
-
-    def slice_shift(self, periods=1, axis=0):
-        return self._default_to_pandas("slice_shift", periods=periods, axis=axis)
 
     def sort_index(
         self,

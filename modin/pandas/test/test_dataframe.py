@@ -55,6 +55,7 @@ from .utils import (
     int_arg_keys,
     int_arg_values,
     eval_general,
+    create_test_dfs,
 )
 
 pd.DEFAULT_NPARTITIONS = 4
@@ -111,13 +112,9 @@ def eval_insert(modin_df, pandas_df, **kwargs):
     )
 
 
-def create_test_dfs(*args, **kwargs):
-    return pd.DataFrame(*args, **kwargs), pandas.DataFrame(*args, **kwargs)
-
-
 class TestDataFrameBinary:
     def inter_df_math_helper(self, modin_df, pandas_df, op):
-        # Test dataframe to datframe
+        # Test dataframe to dataframe
         try:
             pandas_result = getattr(pandas_df, op)(pandas_df)
         except Exception as e:
@@ -843,6 +840,14 @@ class TestDataFrameMapMetadata:
         bad_dtype_dict = {"B": np.int32, "B": np.int64, "B": str}  # noqa F601
         modin_df_casted = modin_df.astype(bad_dtype_dict)
         expected_df_casted = expected_df.astype(bad_dtype_dict)
+        df_equals(modin_df_casted, expected_df_casted)
+
+        modin_df = pd.DataFrame(index=["row1"], columns=["col1"])
+        modin_df["col1"]["row1"] = 11
+        modin_df_casted = modin_df.astype(int)
+        expected_df = pandas.DataFrame(index=["row1"], columns=["col1"])
+        expected_df["col1"]["row1"] = 11
+        expected_df_casted = expected_df.astype(int)
         df_equals(modin_df_casted, expected_df_casted)
 
         with pytest.raises(KeyError):
@@ -1763,6 +1768,24 @@ class TestDataFrameUDF:
             modin_result = modin_df.apply(func, axis)
             df_equals(modin_result, pandas_result)
 
+    @pytest.mark.parametrize("axis", [0, 1])
+    @pytest.mark.parametrize("level", [None, -1, 0, 1])
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+    @pytest.mark.parametrize("func", ["count", "sum", "mean", "all", "kurt"])
+    def test_apply_text_func_with_level(self, level, data, func, axis):
+        func_kwargs = {"level": level, "axis": axis}
+        rows_number = len(next(iter(data.values())))  # length of the first data column
+        level_0 = np.random.choice([0, 1, 2], rows_number)
+        level_1 = np.random.choice([3, 4, 5], rows_number)
+        index = pd.MultiIndex.from_arrays([level_0, level_1])
+
+        eval_general(
+            pd.DataFrame(data, index=index),
+            pandas.DataFrame(data, index=index),
+            lambda df, *args, **kwargs: df.apply(func, *args, **kwargs),
+            **func_kwargs,
+        )
+
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
     @pytest.mark.parametrize("axis", axis_values, ids=axis_keys)
     def test_apply_args(self, data, axis):
@@ -2320,22 +2343,35 @@ class TestDataFrameDefault:
     @pytest.mark.parametrize("skipna", bool_arg_values, ids=bool_arg_keys)
     @pytest.mark.parametrize("level", [None, -1, 0, 1])
     @pytest.mark.parametrize("numeric_only", bool_arg_values, ids=bool_arg_keys)
-    @pytest.mark.parametrize("method", ["kurtosis", "kurt"])
-    def test_kurt_kurtosis(self, axis, skipna, level, numeric_only, method):
+    def test_kurt_kurtosis(self, axis, skipna, level, numeric_only):
+        func_kwargs = {
+            "axis": axis,
+            "skipna": skipna,
+            "level": level,
+            "numeric_only": numeric_only,
+        }
         data = test_data_values[0]
-        modin_df, pandas_df = pd.DataFrame(data), pandas.DataFrame(data)
-        try:
-            pandas_result = getattr(pandas_df, method)(
-                axis, skipna, level, numeric_only
+        df_modin = pd.DataFrame(data)
+        df_pandas = pandas.DataFrame(data)
+
+        eval_general(
+            df_modin, df_pandas, lambda df: df.kurtosis(**func_kwargs),
+        )
+
+        if level is not None:
+            cols_number = len(data.keys())
+            arrays = [
+                np.random.choice(["bar", "baz", "foo", "qux"], cols_number),
+                np.random.choice(["one", "two"], cols_number),
+            ]
+            index = pd.MultiIndex.from_tuples(
+                list(zip(*arrays)), names=["first", "second"]
             )
-        except Exception as e:
-            with pytest.raises(type(e)):
-                repr(
-                    getattr(modin_df, method)(axis, skipna, level, numeric_only)
-                )  # repr to force materialization
-        else:
-            modin_result = getattr(modin_df, method)(axis, skipna, level, numeric_only)
-            df_equals(modin_result, pandas_result)
+            df_modin.columns = index
+            df_pandas.columns = index
+            eval_general(
+                df_modin, df_pandas, lambda df: df.kurtosis(**func_kwargs),
+            )
 
     def test_last(self):
         modin_index = pd.date_range("2010-04-09", periods=400, freq="2D")
@@ -2494,10 +2530,24 @@ class TestDataFrameDefault:
             pandas_df.shift(periods=periods, axis=axis, fill_value=777),
         )
 
-    def test_slice_shift(self):
-        data = test_data_values[0]
-        with pytest.warns(UserWarning):
-            pd.DataFrame(data).slice_shift()
+    @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+    @pytest.mark.parametrize("index", ["default", "ndarray"])
+    @pytest.mark.parametrize("axis", [0, 1])
+    @pytest.mark.parametrize("periods", [0, 1, -1, 10, -10, 1000000000, -1000000000])
+    def test_slice_shift(self, data, index, axis, periods):
+        if index == "default":
+            modin_df = pd.DataFrame(data)
+            pandas_df = pandas.DataFrame(data)
+        elif index == "ndarray":
+            data_column_length = len(data[next(iter(data))])
+            index_data = np.arange(2, data_column_length + 2)
+            modin_df = pd.DataFrame(data, index=index_data)
+            pandas_df = pandas.DataFrame(data, index=index_data)
+
+        df_equals(
+            modin_df.slice_shift(periods=periods, axis=axis),
+            pandas_df.slice_shift(periods=periods, axis=axis),
+        )
 
     def test_stack(self):
         data = test_data_values[0]
@@ -4463,6 +4513,48 @@ class TestDataFrameIndexing:
             transposed_pandas.loc[transposed_pandas.index[:-2], :],
         )
 
+    def test_loc_assignment(self):
+        modin_df = pd.DataFrame(
+            index=["row1", "row2", "row3"], columns=["col1", "col2"]
+        )
+        pandas_df = pandas.DataFrame(
+            index=["row1", "row2", "row3"], columns=["col1", "col2"]
+        )
+        modin_df.loc["row1"]["col1"] = 11
+        modin_df.loc["row2"]["col1"] = 21
+        modin_df.loc["row3"]["col1"] = 31
+        modin_df.loc["row1"]["col2"] = 12
+        modin_df.loc["row2"]["col2"] = 22
+        modin_df.loc["row3"]["col2"] = 32
+        pandas_df.loc["row1"]["col1"] = 11
+        pandas_df.loc["row2"]["col1"] = 21
+        pandas_df.loc["row3"]["col1"] = 31
+        pandas_df.loc["row1"]["col2"] = 12
+        pandas_df.loc["row2"]["col2"] = 22
+        pandas_df.loc["row3"]["col2"] = 32
+        df_equals(modin_df, pandas_df)
+
+    def test_iloc_assignment(self):
+        modin_df = pd.DataFrame(
+            index=["row1", "row2", "row3"], columns=["col1", "col2"]
+        )
+        pandas_df = pandas.DataFrame(
+            index=["row1", "row2", "row3"], columns=["col1", "col2"]
+        )
+        modin_df.iloc[0]["col1"] = 11
+        modin_df.iloc[1]["col1"] = 21
+        modin_df.iloc[2]["col1"] = 31
+        modin_df.iloc[0]["col2"] = 12
+        modin_df.iloc[1]["col2"] = 22
+        modin_df.iloc[2]["col2"] = 32
+        pandas_df.iloc[0]["col1"] = 11
+        pandas_df.iloc[1]["col1"] = 21
+        pandas_df.iloc[2]["col1"] = 31
+        pandas_df.iloc[0]["col2"] = 12
+        pandas_df.iloc[1]["col2"] = 22
+        pandas_df.iloc[2]["col2"] = 32
+        df_equals(modin_df, pandas_df)
+
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
     def test_pop(self, request, data):
         modin_df = pd.DataFrame(data)
@@ -4895,6 +4987,16 @@ class TestDataFrameIndexing:
 
         modin_result = modin_df.sample(n=2, random_state=42, axis=axis)
         pandas_result = pandas_df.sample(n=2, random_state=42, axis=axis)
+        df_equals(modin_result, pandas_result)
+
+        # issue #1692, numpy RandomState object
+        # We must create a new random state for each iteration because the values that
+        # are selected will be impacted if the object has already been used.
+        random_state = np.random.RandomState(42)
+        modin_result = modin_df.sample(frac=0.5, random_state=random_state, axis=axis)
+
+        random_state = np.random.RandomState(42)
+        pandas_result = pandas_df.sample(frac=0.5, random_state=random_state, axis=axis)
         df_equals(modin_result, pandas_result)
 
     def test_select_dtypes(self):

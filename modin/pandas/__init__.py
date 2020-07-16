@@ -27,7 +27,6 @@ if pandas.__version__ != __pandas_version__:
 
 from pandas import (
     eval,
-    value_counts,
     cut,
     factorize,
     test,
@@ -132,6 +131,7 @@ from .general import (
     pivot,
     to_numeric,
     unique,
+    value_counts,
 )
 from .plotting import Plotting as plotting
 from .. import execution_engine, Publisher
@@ -156,7 +156,6 @@ def initialize_ray():
         if cluster == "True" and redis_address is not None:
             # We only start ray in a cluster setting for the head node.
             ray.init(
-                num_cpus=int(num_cpus),
                 include_webui=False,
                 ignore_reinit_error=True,
                 address=redis_address,
@@ -263,13 +262,15 @@ def _update_engine(publisher: Publisher):
 
             warnings.warn("The Dask Engine for Modin is experimental.")
 
-        try:
-            dask_client = get_client()
-        except ValueError:
-            from distributed import Client
+            try:
+                dask_client = get_client()
+            except ValueError:
+                from distributed import Client
 
-            num_cpus = os.environ.get("MODIN_CPUS", None) or multiprocessing.cpu_count()
-            dask_client = Client(n_workers=int(num_cpus))
+                num_cpus = (
+                    os.environ.get("MODIN_CPUS", None) or multiprocessing.cpu_count()
+                )
+                dask_client = Client(n_workers=int(num_cpus))
 
     elif publisher.get() != "Python":
         raise ImportError("Unrecognized execution engine: {}.".format(publisher.get()))
@@ -302,7 +303,6 @@ __all__ = [
     "json_normalize",
     "concat",
     "eval",
-    "value_counts",
     "cut",
     "factorize",
     "test",
@@ -382,6 +382,7 @@ __all__ = [
     "pivot",
     "to_numeric",
     "unique",
+    "value_counts",
     "datetime",
     "NamedAgg",
     "DEFAULT_NPARTITIONS",
