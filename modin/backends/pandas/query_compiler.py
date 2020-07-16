@@ -1492,9 +1492,16 @@ class PandasQueryCompiler(BaseQueryCompiler):
         def reduce_func(df):
             return df.apply(lambda x: x.fillna(method="bfill").iloc[0])
 
-        without_meta = GroupbyReduceFunction.register(grp_map, reduce_func)(obj, by=index, axis=0, groupby_args={}, map_args={}, reduce_args={}, numeric_only=False)
+        without_meta = GroupbyReduceFunction.register(grp_map, reduce_func)(
+            obj,
+            by=index,
+            axis=0,
+            groupby_args={},
+            map_args={},
+            reduce_args={},
+            numeric_only=False,
+        )
         return without_meta
-
 
     # Get_dummies
     def get_dummies(self, columns, **kwargs):
