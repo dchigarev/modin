@@ -2349,15 +2349,9 @@ class TestDataFrameDefault:
             pd.DataFrame(data).pct_change()
 
     @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
-    @pytest.mark.parametrize(
-        "index", [lambda df: df.columns[0], lambda df: df[df.columns[0]].values, None]
-    )
-    @pytest.mark.parametrize(
-        "columns", [lambda df: df.columns[len(df.columns) // 2], None]
-    )
-    @pytest.mark.parametrize(
-        "values", [lambda df: df.columns[-1], lambda df: df.columns[-3:-1], None]
-    )
+    @pytest.mark.parametrize("index", [lambda df: df.columns[0]])
+    @pytest.mark.parametrize("columns", [lambda df: df.columns[len(df.columns) // 2]])
+    @pytest.mark.parametrize("values", [lambda df: df.columns[-1]])
     def test_pivot(self, data, index, columns, values):
         md_df, pd_df = pd.DataFrame(data), pandas.DataFrame(data)
         eval_general(

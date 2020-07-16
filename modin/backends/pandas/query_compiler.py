@@ -1466,15 +1466,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Manual Partitioning methods
 
-    def _get_values(self, keys):
-        result = []
-        for key in keys:
-            if isinstance(key, str) and key in self.columns:
-                result.append(self.getitem_column_array([key]).to_pandas().squeeze())
-            else:
-                result.append(key)
-        return result
-
     def pivot(self, index, columns, values):
         from pandas.core.reshape.pivot import _convert_by
 
@@ -1496,7 +1487,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             return df.apply(lambda df: df.set_index(columns).T).droplevel(1)
 
         # at the reduce phase we will get df with NaN values placed like this:
-        #        A    B    C 
+        #        A    B    C
         # one    1  nan    3
         # two    4    5  nan    so we want to apply `bfill` fillna method
         # one  nan    2  nan    fo each group to get desired result
