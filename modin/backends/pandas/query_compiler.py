@@ -1610,20 +1610,24 @@ class PandasQueryCompiler(BaseQueryCompiler):
         index, columns, values = map(__convert_by, [index, columns, values])
 
         if len(values) != 0:
-            obj = self.getitem_column_array(columns + values)
+            obj = self.getitem_column_array(values)
         else:
             obj = self.drop(columns=index)
 
         # if index contain NaN values, then groupby will not consider
         # NaN as a group and we will lose that row in the result
         # (pandas saves this row), so doing this dirty hack,
-        # maybe there is more good solution to handle NaNs groups
+        # maybe there is more elegant solution to handle NaNs groups
         index = self.getitem_column_array(index).fillna(value="NaN")
+        temp_index = pandas.Index(
+            self.getitem_column_array(columns).to_pandas().squeeze()
+        )
+
+        index.index = temp_index
+        obj.index = temp_index
 
         def map_func(df):
-            return df.apply(
-                lambda df: df.set_index(columns).sort_index(axis=0).transpose()
-            ).droplevel(1)
+            return df.apply(lambda df: df.sort_index(axis=0).T).droplevel(1)
 
         # at the reduce phase we will get df with NaN values placed like this:
         #        A    B    C
