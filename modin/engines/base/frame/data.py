@@ -54,6 +54,16 @@ class BasePandasFrame(object):
             dtypes: (optional) The data types for the dataframe.
         """
         self._partitions = partitions
+
+        if columns is None:
+            columns = self._frame_mgr_cls.get_indices(
+                1, partitions, lambda df: df.columns
+            )
+        if index is None:
+            index = self._frame_mgr_cls.get_indices(
+                0, partitions, lambda df: df.index
+            )
+
         self._index_cache = ensure_index(index)
         self._columns_cache = ensure_index(columns)
         if row_lengths is not None and len(self.index) > 0:
@@ -1060,9 +1070,11 @@ class BasePandasFrame(object):
         if axis is not None:
             assert apply_indices is not None
             # Convert indices to numeric indices
-            old_index = self.index if axis else self.columns
-            numeric_indices = old_index.get_indexer_for(apply_indices)
-            dict_indices = self._get_dict_of_block_index(axis, numeric_indices)
+            #breakpoint()
+            # old_index = self.index if not axis else self.columns
+            # numeric_indices = old_index.get_indexer_for(apply_indices)
+            # dict_indices = self._get_dict_of_block_index(axis, numeric_indices)
+            dict_indices = {i: [0] for i in np.arange(len(self._partitions))}
             new_partitions = self._frame_mgr_cls.apply_func_to_select_indices(
                 axis,
                 self._partitions,
@@ -1082,8 +1094,9 @@ class BasePandasFrame(object):
                 else [self._row_lengths, self._column_widths][axis],
                 axis ^ 1: [self._row_lengths, self._column_widths][axis ^ 1],
             }
+            #breakpoint()
             return self.__constructor__(
-                new_partitions, new_index, new_columns, lengths_objs[0], lengths_objs[1]
+                new_partitions, None, None
             )
         else:
             # We are apply over both axes here, so make sure we have all the right

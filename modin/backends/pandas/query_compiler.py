@@ -1190,41 +1190,41 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 x = []
             return x
 
-        row_lengths = self._modin_frame._row_lengths
-
-        id_vars, values_vars = map(
+        id_vars, value_vars = map(
             _convert_to_list,
             [kwargs.get("id_vars", None), kwargs.get("value_vars", None)],
         )
 
-        value_vars = len(values_vars)
-        if value_vars == 0:
-            value_vars = len(self.columns) - len(id_vars)
+        if len(value_vars) == 0:
+            value_vars = self.columns.drop(id_vars)
 
-        shuffled = self._modin_frame._apply_full_axis(
-            1, lambda df: df.melt(*args, **kwargs)
-        )
+        def applyier(df, internal_indices):
+            # print("___DF:\n", df, sep="")
+            # print("__IND:", internal_indices)
+            # print("__res:\n", df.melt(id_vars=id_vars, value_vars=value_vars[0]), sep="")
+            return df.melt(id_vars=id_vars, value_vars=value_vars[0])
 
-        def calc_range(i):
-            ranges = [
-                np.arange(
-                    i * row_lengths[j] + j * value_vars * row_lengths[j - 1],
-                    i * row_lengths[j]
-                    + j * value_vars * row_lengths[j - 1]
-                    + row_lengths[j],
-                )
-                for j in range(len(row_lengths))
-            ]
-            return np.concatenate(ranges)
+        # to_appl =
+        parts = [self.getitem_column_array([value_vars[i]]) for i in np.arange(len(value_vars))]
+        result = parts[0].concat(axis=0, other=parts[1:])
+        # results = [
+        #     self._modin_frame._apply_select_indices(
+        #         axis=1,
+        #         apply_indices=id_vars + value_vars,
+        #         func=lambda df, internal_indices: df.melt(
+        #             value_vars=value_vars
+        #         ),
+        #         keep_remaining=True,
+        #     )
+        #     # for i in range(len(value_vars))
+        # ]
+        # result = self.__constructor__(results[0]._concat(axis=0, others=results[1:], how="outer", sort=None))
+        # breakpoint()
+        # id_vars_numeric = self.columns.get_indexer_for(id_vars)
+        # value_vars_numeric = self.columns.get_indexer_for(value_vars)
 
-        ranges = [calc_range(i) for i in range(value_vars)]
-
-        new_order = np.concatenate(ranges)
-        ordered = shuffled.reorder_labels(row_numeric_idx=new_order)
-
-        result = self.__constructor__(ordered)
-
-        return result.reset_index(drop=True)
+        # breakpoint()
+        return result
 
     # END Map across rows/columns
 
