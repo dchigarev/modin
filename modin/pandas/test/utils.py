@@ -22,6 +22,7 @@ from pandas.util.testing import (
 import modin.pandas as pd
 from modin.utils import to_pandas
 from io import BytesIO
+import os
 
 random_state = np.random.RandomState(seed=42)
 
@@ -639,6 +640,35 @@ def eval_general(
     )
     if values is not None:
         comparator(*values)
+
+
+def get_args_ids():
+    raw_args = (
+        os.environ.get("PYTEST_CURRENT_TEST").split(":")[-1].split(" ")[0].split("-")
+    )
+    raw_args[-1] = raw_args[-1][:-1]
+    slice_first = raw_args[0].find("[")
+    raw_args[0] = raw_args[0][slice_first + 1 :]
+    return raw_args
+
+
+def df_equals_with_types(md_df, pd_df):
+    assert isinstance(
+        md_df, (pd.DataFrame, pd.Series)
+    ), f"md_df have unexcepted type: {type(md_df)}"
+    assert isinstance(
+        pd_df, (pandas.DataFrame, pandas.Series)
+    ), f"pd_df have unexcepted type: {type(pd_df)}"
+
+    if not (
+        (isinstance(md_df, pd.DataFrame) and isinstance(pd_df, pandas.DataFrame))
+        or (isinstance(md_df, pd.Series) and isinstance(pd_df, pandas.Series))
+    ):
+        raise AssertionError(
+            f"DataFrame types is incomparable. md_df has type: {type(md_df)} and pd_df: {type(pd_df)}"
+        )
+
+    return df_equals(md_df, pd_df)
 
 
 def create_test_dfs(*args, **kwargs):

@@ -1793,17 +1793,56 @@ class DataFrame(BasePandasDataset):
         margins_name="All",
         observed=False,
     ):
-        return self._default_to_pandas(
-            pandas.DataFrame.pivot_table,
-            values=values,
-            index=index,
-            columns=columns,
-            aggfunc=aggfunc,
-            fill_value=fill_value,
-            margins=margins,
-            dropna=dropna,
-            margins_name=margins_name,
+        from .concat import concat
+
+        if is_list_like(aggfunc) and not is_dict_like(aggfunc):
+            to_concat = []
+            keys = []
+            for func in aggfunc:
+                part = self.pivot_table(
+                    values,
+                    index,
+                    columns,
+                    func,
+                    fill_value,
+                    margins,
+                    dropna,
+                    margins_name,
+                    observed,
+                )
+                to_concat.append(part)
+                keys.append(getattr(func, "__name__", str(func)))
+
+            return concat(to_concat, keys=keys, axis=1)
+
+        result = self.__constructor__(
+            query_compiler=self._query_compiler.pivot_table(
+                values=values,
+                index=index,
+                columns=columns,
+                aggfunc=aggfunc,
+                fill_value=fill_value,
+                margins=margins,
+                dropna=dropna,
+                margins_name=margins_name,
+                observed=observed,
+            )
         )
+        if (
+            len(result.columns) == 1
+            and result.columns[0] == 0
+            and isinstance(result.columns, pandas.RangeIndex)
+        ) or (
+            len(result.index) == 1
+            and result.index[0] == 0
+            and isinstance(result.index, pandas.RangeIndex)
+        ):
+            result = self._reduce_dimension(result._query_compiler)
+            assert isinstance(result, (Series, type(self)))
+            if getattr(result, "name", None) == 0:
+                result.name = None
+
+        return result
 
     @property
     def plot(

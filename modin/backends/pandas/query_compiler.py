@@ -143,6 +143,10 @@ def copy_df_for_func(func):
     return caller
 
 
+def df_to_array(df, keys):
+    return [df[key] for key in keys]
+
+
 class PandasQueryCompiler(BaseQueryCompiler):
     """This class implements the logic necessary for operating on partitions
     with a Pandas backend. This logic is specific to Pandas."""
@@ -2053,7 +2057,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Return:
             a new QueryCompiler
         """
-
         return self.__constructor__(
             self._modin_frame.filter_full_axis(
                 kwargs.get("axis", 0) ^ 1,
@@ -2367,6 +2370,457 @@ class PandasQueryCompiler(BaseQueryCompiler):
             return result.reset_index(drop=not drop)
 
     # END Manual Partitioning methods
+
+    def compute_by(
+        self, by, func, groupby_args=None, func_args=None, materialized_by=None
+    ):
+        """
+        Compute mask for groupby by column names and aggregate it
+        with passed `func`
+
+        Parameters
+        ----------
+        by : str or list of str
+            Columns to groupby
+
+        func : str, callable, list of previous or dict
+            Aggregation function to apply
+
+        groupby_args : dict, optional
+
+        func_args : dict, optional
+
+        materialized_by : list of DataFrames, optional
+            `compute_by` will materialize columns specified in `by` which is
+            not so fast, if you're already have materialized columns you can
+            pass it as `materialized_by` to avoid extra materialization
+
+        Returns
+        -------
+            New PandasQueryCompiler with result of aggregation over groupby.
+        """
+        groupby_args = {} if groupby_args is None else groupby_args
+        func_args = {} if func_args is None else func_args
+
+        if not is_list_like(by):
+            by = [by]
+
+        if len(by) == 0:
+            raise ValueError("No group keys passed!")
+        else:
+            mask = (
+                self.getitem_column_array(np.unique(by)).to_pandas().squeeze()
+                if materialized_by is None
+                else materialized_by
+            )
+
+        if isinstance(mask, pandas.DataFrame):
+            mask = df_to_array(mask, by)
+
+        if materialized_by is None:
+            to_group = self.drop(columns=by)
+        else:
+            to_group = self
+
+        return to_group.groupby_agg(
+            by=mask,
+            axis=0,
+            agg_func=lambda df: df.agg(func),
+            groupby_args=groupby_args,
+            agg_args=func_args,
+        )
+
+    def _sorted_multi_insert(self, columns, positions, level=None):
+        """
+        Inserts `columns` at passed `positions` assuming that columns in
+        source DataFrame is sorted by its labels.
+
+        That function only applys concat + sort_index once, which is faster
+        than inserting columns via `insert` in a for loop
+
+        Parameters
+        ----------
+        columns : PandasQueryCompiler
+            DataFrame with columns to insert
+
+        positions : list of ints
+            List of positions of every column to insert
+
+        level : int, optional
+            If columns is MultiIndex, specifies level on that columns
+            should be inserted
+
+        Returns
+        -------
+            New PandasQueryCompiler with inserted columns
+
+        Examples
+        --------
+        >>> columns.to_pandas()
+           All1  All2  All3
+        0     0     5    10
+        1     1     6    11
+        2     2     7    12
+
+        >>> src.to_pandas()
+           a  b  c
+        0  x  i  d
+        1  y  j  c
+        2  z  k  p
+
+        >>> src._sorted_multi_insert(columns, [1, 2, 3]).to_pandas()
+           a  All1  b  All2  c  All3
+        0  x     0  i     5  d    10
+        1  y     1  j     6  c    11
+        2  z     2  k     7  p    12
+
+        """
+        # fastpath if we want to insert `columns` to the end of DataFrame
+        if all([pos == len(self.columns) for pos in positions]):
+            return self.concat(axis=1, other=columns)
+
+        # TODO(dchigarev): uncomment this lines after #1773 will be merged
+        # # we can do more efficient insert if frames have identical partitioning
+        # if self._modin_frame._row_lengths == columns._modin_frame._row_lengths:
+        #     return self._insert_qc(locs=positions, other_qc=columns)
+
+        def get_val(value):
+            return value[level] if level is not None else value
+
+        splitter = "___splitter___:"
+        new_labels = []
+
+        # Renaming `columns` labels by adding as a prefix previous_columns_label + splitter,
+        # so when we will concat that `columns` with `self` and then sort columns labels,
+        # we will get our `columns` exactly at that positions that specified in `positions`
+        new_labels = [
+            f"{get_val(self.columns[pos - 1])}{splitter}{get_val(col)}"
+            for pos, col in zip(positions, columns.columns)
+        ]
+
+        columns.columns = _safe_index_creator(
+            new_labels, like=columns.columns, level=level, discard_bottom_levels=False,
+        )
+
+        positions = [pos + i for pos, i in enumerate(positions)]
+
+        # assuming that `sort_index` will be faster soon
+        inserted = self.concat(axis=1, other=columns).sort_index(axis=1)
+
+        def splitter_remover(column):
+            splitter_position = column.find(splitter)
+            assert splitter_position != -1
+            return column[splitter_position + len(splitter) :]
+
+        # Restoring old column labels
+        inserted.columns = _safe_index_creator(
+            splitter_remover,
+            like=inserted.columns,
+            level=level,
+            discard_bottom_levels=False,
+            positions=positions,
+        )
+
+        return inserted
+
+    def _compute_meta(self, margins, margins_name, values):
+        """
+        Compute positions and margin labels to insert in pivot table
+
+        Parameters
+        ----------
+        margins : PandasQueryCompiler
+            DataFrame with computed margins
+
+        margins_name : str
+
+        values : list of str
+            Columns that used as values in pivot table
+
+        Returns
+        -------
+            dict that contains two fields:
+                "columns": margins with updated labels
+                "positions": list of ints, positions where margins
+                    should be inserted in pivot table
+        """
+        positions = []
+
+        for val in values:
+            try:
+                idx = self.columns.get_loc(val)
+            except KeyError:
+                idx = len(self.columns)
+
+            # if `idx` is a slice getting stop value
+            last_index = getattr(idx, "stop", idx)
+            positions.append(last_index)
+
+        margins.columns = _safe_index_creator(
+            [margins_name] * len(values),
+            like=self.columns[np.array(positions) - 1],
+            level=bool(len(values) > 1),
+        )
+
+        return {"columns": margins, "positions": positions}
+
+    def _compute_total_margins(self, src, aggfunc, values, margins_name, to_group=None):
+        if to_group is None:
+            to_apply = src.getitem_column_array(values)
+        else:
+            to_apply = to_group
+
+        margins = to_apply.apply(axis=0, func=aggfunc)
+        margins.index = _safe_index_creator(
+            [margins_name], like=self.index, positions=[0], level=0
+        )
+        return margins
+
+    def _compute_columns_margins(
+        self,
+        src,
+        index,
+        values,
+        aggfunc,
+        margins_name,
+        observed,
+        to_group=None,
+        materialized_by=None,
+    ):
+        if to_group is None:
+            to_margins_group = src.getitem_column_array(np.unique(index + values))
+        else:
+            to_margins_group = to_group
+        columns_margins = to_margins_group.compute_by(
+            index,
+            aggfunc,
+            groupby_args={"observed": observed},
+            materialized_by=materialized_by,
+        )
+        meta_info = self._compute_meta(columns_margins, margins_name, values)
+        result = self._sorted_multi_insert(level=1, **meta_info)
+        return result
+
+    def _compute_rows_margins(
+        self,
+        src,
+        columns,
+        values,
+        aggfunc,
+        margins_name,
+        observed,
+        to_group=None,
+        materialized_by=None,
+    ):
+        if to_group is None:
+            to_margins_group = src.getitem_column_array(np.unique(columns + values))
+        else:
+            to_margins_group = to_group
+
+        row_margins = to_margins_group.compute_by(
+            columns,
+            aggfunc,
+            groupby_args={"observed": observed},
+            materialized_by=materialized_by,
+        )
+
+        row_margins = row_margins.unstack(
+            level=[i for i in range(len(columns))]
+        ).transpose()
+        row_margins.index = _safe_index_creator(
+            [margins_name], like=self.index, positions=[0], level=0
+        )
+
+        if len(values) == 1 and isinstance(row_margins.columns, pandas.MultiIndex):
+            row_margins.columns = row_margins.columns.droplevel(0)
+
+        total_margin = self._compute_total_margins(src, aggfunc, values, margins_name)
+        meta_info = row_margins._compute_meta(total_margin, margins_name, values)
+
+        result = row_margins._sorted_multi_insert(level=1, **meta_info)
+
+        return result
+
+    def _add_margins(
+        self,
+        src,
+        index,
+        columns,
+        values,
+        aggfunc,
+        margins_name,
+        observed,
+        to_group=None,
+        materialized_by=None,
+    ):
+        if not isinstance(margins_name, str):
+            raise ValueError(
+                f"Margins name must be a string, {type(margins_name)} passed."
+            )
+
+        columns_margins = self._compute_columns_margins(
+            src,
+            index,
+            values,
+            aggfunc,
+            margins_name,
+            observed,
+            to_group=to_group,
+            materialized_by=materialized_by,
+        )
+        row_margins = self._compute_rows_margins(
+            src,
+            columns,
+            values,
+            aggfunc,
+            margins_name,
+            observed,
+            to_group=to_group,
+            materialized_by=materialized_by,
+        )
+        result = columns_margins.concat(axis=0, other=row_margins)
+        return result
+
+    def pivot_table(
+        self,
+        values,
+        index,
+        columns,
+        aggfunc,
+        fill_value,
+        margins,
+        dropna,
+        margins_name,
+        observed,
+    ):
+        assert callable(aggfunc) or isinstance(aggfunc, (str, dict))
+
+        from pandas.core.reshape.pivot import _convert_by
+
+        def __convert_by(by):
+            if isinstance(by, pandas.Index):
+                return list(by)
+            return _convert_by(by)
+
+        index, columns, values = map(__convert_by, [index, columns, values])
+        keys = index + columns
+        unique_keys = np.unique(keys)
+        unique_key_values = np.unique(keys + values)
+        unique_values = np.unique(values)
+
+        if len(unique_keys) == 0:
+            raise ValueError("No group keys passed!")
+
+        # This implementation can handle that case, but pandas raises exception.
+        # Emulating pandas behaviour
+        if (
+            len(values)
+            and len(unique_key_values) < len(keys + values)
+            and len(keys + values) < len(self.columns)
+        ):
+            raise ValueError("Keys overlapping")
+
+        if len(values):
+            to_group = self.getitem_column_array(unique_values)
+        else:
+            to_group = self.drop(columns=unique_keys)
+            values = self.columns.drop(unique_keys)
+
+        keys_columns = self.getitem_column_array(unique_keys)
+        # we will materialize that columns anyway when trying to do groupby aggregate
+        # so since we have many groupby aggregation in our implementation (groupby in margins)
+        # it is useful to materialize `by` columns just a single time
+        materialized_by = keys_columns.to_pandas().squeeze()
+
+        if len(unique_keys) > 1:
+            # if columns from `keys` has NaN values
+            if keys_columns.isna().any(axis=0).any(axis=1).to_pandas().squeeze():
+                # in that case applying any function at full axis in modin_frame
+                # leads to losing useful meta information in `get_indices`, so that
+                # brings us different result from pandas in `unstack` function,
+                # so building correct index by itself
+                keys_columns = keys_columns.to_pandas().squeeze()
+                index_array = df_to_array(keys_columns, keys)
+
+                nan_index = (
+                    pandas.MultiIndex.from_arrays(index_array)
+                    .unique()
+                    .dropna()
+                    .sort_values()
+                )
+            else:
+                nan_index = None
+        else:
+            nan_index = None
+
+        agged = to_group.compute_by(
+            keys,
+            aggfunc,
+            groupby_args={"observed": observed},
+            materialized_by=materialized_by,
+        )
+
+        if dropna:
+            agged = agged.dropna(how="all")
+            # when some row was droped in the result of `dropna`
+            if nan_index is not None and len(nan_index) > len(agged.index):
+                nan_index = nan_index.drop(nan_index.difference(agged.index))
+
+        if isinstance(agged.index, pandas.MultiIndex):
+            # that line means agged.unstack(level=columns), we must translate
+            # level names to its indices, because sometimes index may contain
+            # duplicated level names
+            if nan_index is not None:
+                agged.index = nan_index
+            unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))], fill_value=None)
+        else:
+            unstacked = agged
+
+        # with that condition pandas does that strange logic, that is ruining
+        # performance for us because of reindex which will be applied at
+        # full axis, that pandas behaviour could be changed in future,
+        # see pandas issue #18030 for details
+        if not dropna:
+            if isinstance(unstacked.index, pandas.MultiIndex):
+                extended_index = pandas.MultiIndex.from_product(
+                    unstacked.index.levels, names=unstacked.index.names
+                )
+                unstacked = unstacked.reindex(axis=0, labels=extended_index)
+            if isinstance(unstacked.columns, pandas.MultiIndex):
+                extended_columns = pandas.MultiIndex.from_product(
+                    unstacked.columns.levels, names=unstacked.columns.names
+                )
+                unstacked = unstacked.reindex(axis=1, labels=extended_columns)
+
+        if len(values) == 1 and isinstance(unstacked.columns, pandas.MultiIndex):
+            unstacked.columns = unstacked.columns.droplevel(0)
+
+        if len(index) == 0 and len(columns) > 0:
+            is_series = True
+            unstacked = unstacked.transpose()
+        else:
+            is_series = False
+
+        if dropna and not is_series:
+            unstacked = unstacked.dropna(axis=1, how="all")
+
+        if margins:
+            unstacked = unstacked._add_margins(
+                self,
+                index,
+                columns,
+                values,
+                aggfunc,
+                margins_name,
+                observed,
+                to_group=to_group,
+                materialized_by=materialized_by,
+            )
+
+        if fill_value:
+            unstacked.fillna(value=fill_value)
+
+        return unstacked
 
     def pivot(self, index, columns, values):
         from pandas.core.reshape.pivot import _convert_by
