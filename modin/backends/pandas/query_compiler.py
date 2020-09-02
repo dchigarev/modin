@@ -2625,7 +2625,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         )
 
         row_margins = row_margins.unstack(
-            level=[i for i in range(len(columns))]
+            level=[i for i in range(len(columns))], fill_value=None
         ).transpose()
         row_margins.index = _safe_index_creator(
             [margins_name], like=self.index, positions=[0], level=0
@@ -2752,7 +2752,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 nan_index = None
         else:
             nan_index = None
-
+        breakpoint()
         agged = to_group.compute_by(
             keys,
             aggfunc,
@@ -2803,6 +2803,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if dropna and not is_series:
             unstacked = unstacked.dropna(axis=1, how="all")
+
+        unstacked = unstacked.sort_index(axis=1)
 
         if margins:
             unstacked = unstacked._add_margins(
