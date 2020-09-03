@@ -32,6 +32,7 @@ from modin.data_management.functions import (
     BinaryFunction,
     GroupbyReduceFunction,
 )
+from .reshape import add_margins
 
 
 def _get_axis(axis):
@@ -2499,7 +2500,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
         ]
 
         columns.columns = _safe_index_creator(
-            new_labels, like=columns.columns, level=level, discard_bottom_levels=False,
+            new_labels,
+            like=columns.columns,
+            level=level,
+            discard_bottom_levels=False,
         )
 
         positions = [pos + i for pos, i in enumerate(positions)]
@@ -2522,164 +2526,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         )
 
         return inserted
-
-    def _compute_meta(self, margins, margins_name, values):
-        """
-        Compute positions and margin labels to insert in pivot table
-
-        Parameters
-        ----------
-        margins : PandasQueryCompiler
-            DataFrame with computed margins
-
-        margins_name : str
-
-        values : list of str
-            Columns that used as values in pivot table
-
-        Returns
-        -------
-            dict that contains two fields:
-                "columns": margins with updated labels
-                "positions": list of ints, positions where margins
-                    should be inserted in pivot table
-        """
-        positions = []
-
-        for val in values:
-            try:
-                idx = self.columns.get_loc(val)
-            except KeyError:
-                idx = len(self.columns)
-
-            # if `idx` is a slice getting stop value
-            last_index = getattr(idx, "stop", idx)
-            positions.append(last_index)
-
-        margins.columns = _safe_index_creator(
-            [margins_name] * len(values),
-            like=self.columns[np.array(positions) - 1],
-            level=bool(len(values) > 1),
-        )
-
-        return {"columns": margins, "positions": positions}
-
-    def _compute_total_margins(self, src, aggfunc, values, margins_name, to_group=None):
-        if to_group is None:
-            to_apply = src.getitem_column_array(values)
-        else:
-            to_apply = to_group
-
-        margins = to_apply.apply(axis=0, func=aggfunc)
-        margins.index = _safe_index_creator(
-            [margins_name], like=self.index, positions=[0], level=0
-        )
-        return margins
-
-    def _compute_columns_margins(
-        self,
-        src,
-        index,
-        values,
-        aggfunc,
-        margins_name,
-        observed,
-        to_group=None,
-        materialized_by=None,
-    ):
-        if to_group is None:
-            to_margins_group = src.getitem_column_array(np.unique(index + values))
-        else:
-            to_margins_group = to_group
-        columns_margins = to_margins_group.compute_by(
-            index,
-            aggfunc,
-            groupby_args={"observed": observed},
-            materialized_by=materialized_by,
-        )
-        meta_info = self._compute_meta(columns_margins, margins_name, values)
-        result = self._sorted_multi_insert(level=1, **meta_info)
-        return result
-
-    def _compute_rows_margins(
-        self,
-        src,
-        columns,
-        values,
-        aggfunc,
-        margins_name,
-        observed,
-        to_group=None,
-        materialized_by=None,
-    ):
-        if to_group is None:
-            to_margins_group = src.getitem_column_array(np.unique(columns + values))
-        else:
-            to_margins_group = to_group
-
-        row_margins = to_margins_group.compute_by(
-            columns,
-            aggfunc,
-            groupby_args={"observed": observed},
-            materialized_by=materialized_by,
-        )
-
-        row_margins = row_margins.unstack(
-            level=[i for i in range(len(columns))], fill_value=None
-        ).transpose()
-        row_margins.index = _safe_index_creator(
-            [margins_name], like=self.index, positions=[0], level=0
-        )
-
-        if len(values) == 1 and isinstance(row_margins.columns, pandas.MultiIndex):
-            row_margins.columns = row_margins.columns.droplevel(0)
-
-        total_margin = self._compute_total_margins(src, aggfunc, values, margins_name)
-        meta_info = row_margins._compute_meta(total_margin, margins_name, values)
-
-        result = row_margins._sorted_multi_insert(level=1, **meta_info)
-
-        return result
-
-    def _add_margins(
-        self,
-        src,
-        index,
-        columns,
-        values,
-        aggfunc,
-        margins_name,
-        observed,
-        to_group=None,
-        materialized_by=None,
-    ):
-        if not isinstance(margins_name, str):
-            raise ValueError(
-                f"Margins name must be a string, {type(margins_name)} passed."
-            )
-
-        columns_margins = self._compute_columns_margins(
-            src,
-            index,
-            values,
-            aggfunc,
-            margins_name,
-            observed,
-            to_group=to_group,
-            materialized_by=materialized_by,
-        )
-        row_margins = self._compute_rows_margins(
-            src,
-            columns,
-            values,
-            aggfunc,
-            margins_name,
-            observed,
-            to_group=to_group,
-            materialized_by=materialized_by,
-        )
-        result = columns_margins.concat(axis=0, other=row_margins)
-        return result
 
     def pivot_table(
         self,
@@ -2732,27 +2578,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         # it is useful to materialize `by` columns just a single time
         materialized_by = keys_columns.to_pandas().squeeze()
 
-        if len(unique_keys) > 1:
-            # if columns from `keys` has NaN values
-            if keys_columns.isna().any(axis=0).any(axis=1).to_pandas().squeeze():
-                # in that case applying any function at full axis in modin_frame
-                # leads to losing useful meta information in `get_indices`, so that
-                # brings us different result from pandas in `unstack` function,
-                # so building correct index by itself
-                keys_columns = keys_columns.to_pandas().squeeze()
-                index_array = df_to_array(keys_columns, keys)
-
-                nan_index = (
-                    pandas.MultiIndex.from_arrays(index_array)
-                    .unique()
-                    .dropna()
-                    .sort_values()
-                )
-            else:
-                nan_index = None
-        else:
-            nan_index = None
-        breakpoint()
         agged = to_group.compute_by(
             keys,
             aggfunc,
@@ -2762,17 +2587,14 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         if dropna:
             agged = agged.dropna(how="all")
-            # when some row was droped in the result of `dropna`
-            if nan_index is not None and len(nan_index) > len(agged.index):
-                nan_index = nan_index.drop(nan_index.difference(agged.index))
 
         if isinstance(agged.index, pandas.MultiIndex):
             # that line means agged.unstack(level=columns), we must translate
             # level names to its indices, because sometimes index may contain
             # duplicated level names
-            if nan_index is not None:
-                agged.index = nan_index
-            unstacked = agged.unstack(level=[i for i in range(len(index), len(keys))], fill_value=None)
+            unstacked = agged.unstack(
+                level=[i for i in range(len(index), len(keys))], fill_value=None
+            )
         else:
             unstacked = agged
 
@@ -2807,14 +2629,15 @@ class PandasQueryCompiler(BaseQueryCompiler):
         unstacked = unstacked.sort_index(axis=1)
 
         if margins:
-            unstacked = unstacked._add_margins(
-                self,
-                index,
-                columns,
-                values,
-                aggfunc,
-                margins_name,
-                observed,
+            unstacked = add_margins(
+                qc=unstacked,
+                src=self,
+                index=index,
+                columns=columns,
+                values=values,
+                aggfunc=aggfunc,
+                margins_name=margins_name,
+                observed=observed,
                 to_group=to_group,
                 materialized_by=materialized_by,
             )

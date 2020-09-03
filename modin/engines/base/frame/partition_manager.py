@@ -336,6 +336,11 @@ class BaseFrameManager(object):
         Returns:
             A Pandas DataFrame
         """
+        #breakpoint()
+        for i in range(len(partitions)):
+            for j in range(len(partitions[i])):
+                print(i, j)
+                partitions[i][j].to_pandas()
         retrieved_objects = [[obj.to_pandas() for obj in part] for part in partitions]
         if all(
             isinstance(part, pandas.Series) for row in retrieved_objects for part in row

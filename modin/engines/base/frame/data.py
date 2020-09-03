@@ -1699,6 +1699,7 @@ class BasePandasFrame(object):
                 new_dtypes = self.dtypes.append([o.dtypes for o in others])
             else:
                 new_dtypes = None
+        #breakpoint()
         return self.__constructor__(
             new_partitions, new_index, new_columns, new_lengths, new_widths, new_dtypes
         )

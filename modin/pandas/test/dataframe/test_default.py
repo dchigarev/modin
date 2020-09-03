@@ -24,6 +24,7 @@ import io
 from modin.pandas.test.utils import (
     df_equals,
     name_contains,
+    test_data,
     test_data_values,
     test_data_keys,
     numeric_dfs,
@@ -510,9 +511,23 @@ def test_pivot(data, index, columns, values):
 @pytest.mark.parametrize(
     "values", [lambda df: df.columns[-1], lambda df: df.columns[-4:-1]]
 )
-def test_pivot_table_data(self, data, index, columns, values):
+def test_pivot_table_data(data, index, columns, values):
+    md_df, pd_df = create_test_dfs(data)
+    # `unstack` has a bug described in #1997, so replacing `unstack` with
+    # default to pandas to properly test `pivot_table`
+    if (
+        index is None
+        and str(md_df._query_compiler.__class__)
+        == "<class 'modin.backends.pandas.query_compiler.PandasQueryCompiler'>"
+    ):
+        md_df._query_compiler.unstack = (
+            lambda self, *args, **kwargs: self.default_to_pandas(
+                pandas.DataFrame.unstack, *args, **kwargs
+            )
+        )
     eval_general(
-        *create_test_dfs(data),
+        md_df,
+        pd_df,
         operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
         index=index,
         columns=columns,
@@ -520,7 +535,8 @@ def test_pivot_table_data(self, data, index, columns, values):
         check_exception_type=None,
     )
 
-@pytest.mark.parametrize("data", [test_data_values[0]], ids=[test_data_keys[0]])
+
+@pytest.mark.parametrize("data", [test_data["int_data"]], ids=["int_data"])
 @pytest.mark.parametrize(
     "index",
     [
@@ -548,10 +564,31 @@ def test_pivot_table_data(self, data, index, columns, values):
 @pytest.mark.parametrize("margins_name", ["Custom name", None])
 @pytest.mark.parametrize("observed", [True, False])
 def test_pivot_table_margins(
-    self, data, index, columns, values, aggfunc, observed, margins_name,
+    data,
+    index,
+    columns,
+    values,
+    aggfunc,
+    observed,
+    margins_name,
 ):
+    md_df, pd_df = create_test_dfs(data)
+
+    # `unstack` has a bug described in #1997, so replacing `unstack` with
+    # default to pandas to properly test margins in `pivot_table`
+    if (
+        str(md_df._query_compiler.__class__)
+        == "<class 'modin.backends.pandas.query_compiler.PandasQueryCompiler'>"
+    ):
+        md_df._query_compiler.unstack = (
+            lambda self, *args, **kwargs: self.default_to_pandas(
+                pandas.DataFrame.unstack, *args, **kwargs
+            )
+        )
+
     eval_general(
-        *create_test_dfs(data),
+        md_df,
+        pd_df,
         operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
         index=index,
         columns=columns,
@@ -562,8 +599,9 @@ def test_pivot_table_margins(
         observed=observed,
     )
 
-@pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
-def test_pivot_table_dropna(self, data):
+
+@pytest.mark.parametrize("data", [test_data["int_data"]], ids=["int_data"])
+def test_pivot_table_dropna(data):
     eval_general(
         *create_test_dfs(data),
         operation=lambda df, *args, **kwargs: df.pivot_table(*args, **kwargs),
