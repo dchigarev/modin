@@ -1828,6 +1828,7 @@ class DataFrame(BasePandasDataset):
                 observed=observed,
             )
         )
+        #breakpoint()
         if (
             len(result.columns) == 1
             and result.columns[0] == 0
@@ -1836,7 +1837,7 @@ class DataFrame(BasePandasDataset):
             len(result.index) == 1
             and result.index[0] == 0
             and isinstance(result.index, pandas.RangeIndex)
-        ):
+        ) or result.index.equals(pandas.Index(["__reduced__"])):
             result = self._reduce_dimension(result._query_compiler)
             assert isinstance(result, (Series, type(self)))
             if getattr(result, "name", None) == 0:

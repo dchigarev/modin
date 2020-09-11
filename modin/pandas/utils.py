@@ -11,12 +11,6 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-<<<<<<< HEAD
-=======
-import pandas
-import numpy as np
-
->>>>>>> FEAT-#1200: pivot_table implementation
 
 def from_non_pandas(df, index, columns, dtype):
     from modin.data_management.dispatcher import EngineDispatcher

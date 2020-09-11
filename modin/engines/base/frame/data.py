@@ -1596,7 +1596,7 @@ class BasePandasFrame(object):
         # Start with this and we'll repartition the first time, and then not again.
         if not left_old_idx.equals(joined_index) or force_repartition:
             reindexed_self = self._frame_mgr_cls.map_axis_partitions(
-                axis, self._partitions, lambda df: df.reindex(joined_index, axis=axis)
+                axis, self._partitions, lambda df: df.reindex(joined_index, axis=axis), force_repartition=True
             )
         else:
             reindexed_self = self._partitions
@@ -1610,6 +1610,7 @@ class BasePandasFrame(object):
                     axis,
                     other[i]._partitions,
                     lambda df: df.reindex(joined_index, axis=axis),
+                    force_repartition=True,
                 )
             reindexed_other_list.append(reindexed_other)
         return reindexed_self, reindexed_other_list, joined_index

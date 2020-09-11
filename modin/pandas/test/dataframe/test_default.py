@@ -562,14 +562,12 @@ def test_pivot_table_data(data, index, columns, values):
     [["mean", "sum"], lambda df: {df.columns[5]: "mean", df.columns[-5]: "sum"}],
 )
 @pytest.mark.parametrize("margins_name", ["Custom name", None])
-@pytest.mark.parametrize("observed", [True, False])
 def test_pivot_table_margins(
     data,
     index,
     columns,
     values,
     aggfunc,
-    observed,
     margins_name,
 ):
     md_df, pd_df = create_test_dfs(data)
@@ -596,7 +594,6 @@ def test_pivot_table_margins(
         aggfunc=aggfunc,
         margins=True,
         margins_name=margins_name,
-        observed=observed,
     )
 
 

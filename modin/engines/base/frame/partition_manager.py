@@ -227,7 +227,7 @@ class BaseFrameManager(object):
         )
 
     @classmethod
-    def map_axis_partitions(cls, axis, partitions, map_func, keep_partitioning=False):
+    def map_axis_partitions(cls, axis, partitions, map_func, keep_partitioning=False, force_repartition=False):
         """
         Applies `map_func` to every partition.
 
@@ -271,7 +271,7 @@ class BaseFrameManager(object):
         # load-balance the data as well.
         result_blocks = np.array(
             [
-                part.apply(preprocessed_map_func, num_splits=num_splits)
+                part.apply(preprocessed_map_func, num_splits=num_splits, maintain_partitioning=not force_repartition)
                 for part in partitions
             ]
         )
@@ -336,11 +336,6 @@ class BaseFrameManager(object):
         Returns:
             A Pandas DataFrame
         """
-        #breakpoint()
-        for i in range(len(partitions)):
-            for j in range(len(partitions[i])):
-                print(i, j)
-                partitions[i][j].to_pandas()
         retrieved_objects = [[obj.to_pandas() for obj in part] for part in partitions]
         if all(
             isinstance(part, pandas.Series) for row in retrieved_objects for part in row

@@ -200,6 +200,7 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
 
         dataframe = pandas.concat(list(partitions), axis=axis, copy=False)
         result = func(dataframe, **kwargs)
+        #print(f"RESULT\n\n{result}")
         if isinstance(result, pandas.Series):
             if num_splits == 1:
                 return result

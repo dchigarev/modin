@@ -23,7 +23,7 @@ from pandas.core.base import DataError
 
 from modin.backends.base.query_compiler import BaseQueryCompiler
 from modin.error_message import ErrorMessage
-from modin.utils import try_cast_to_pandas, wrap_udf_function
+from modin.utils import try_cast_to_pandas, wrap_udf_function, safe_index_creator
 from modin.data_management.functions import (
     FoldFunction,
     MapFunction,
@@ -1083,6 +1083,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return self.__constructor__(new_modin_frame)
 
     def unstack(self, level, fill_value):
+        return self.default_to_pandas(
+            pandas.DataFrame.unstack, level=level, fill_value=fill_value,
+        )
         if not isinstance(self.index, pandas.MultiIndex) or (
             isinstance(self.index, pandas.MultiIndex)
             and is_list_like(level)
@@ -2499,7 +2502,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             for pos, col in zip(positions, columns.columns)
         ]
 
-        columns.columns = _safe_index_creator(
+        columns.columns = safe_index_creator(
             new_labels,
             like=columns.columns,
             level=level,
@@ -2517,7 +2520,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             return column[splitter_position + len(splitter) :]
 
         # Restoring old column labels
-        inserted.columns = _safe_index_creator(
+        inserted.columns = safe_index_creator(
             splitter_remover,
             like=inserted.columns,
             level=level,
@@ -2627,7 +2630,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             unstacked = unstacked.dropna(axis=1, how="all")
 
         unstacked = unstacked.sort_index(axis=1)
-
+        #breakpoint()
         if margins:
             unstacked = add_margins(
                 qc=unstacked,
