@@ -95,233 +95,278 @@ jobs:
       - shell: bash -l {0}
         run: bash <(curl -s https://codecov.io/bash)
 
-  # test-omnisci:
-  #   needs: prepare-cache
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     MODIN_MEMORY: 1000000000
-  #     MODIN_EXPERIMENTAL: "True"
-  #     MODIN_ENGINE: "ray"
-  #     MODIN_BACKEND: "omnisci"
-  #   name: Test OmniSci backend, Python 3.7
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #       with:
-  #         fetch-depth: 1
-  #     - name: Cache pip
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cache/pip
-  #         key: ${{ runner.os }}-python-3.7-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
-  #     - name: Setting up Modin environment
-  #       uses: goanpeca/setup-miniconda@v1.6.0
-  #       with:
-  #         activate-environment: modin_on_omnisci
-  #         python-version: 3.7.8
-  #         environment-file: requirements/env_omnisci.yml
-  #         channel-priority: strict
-  #         use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
-  #     - name: Conda environment
-  #       shell: bash -l {0}
-  #       run: |
-  #         conda info
-  #         conda list
-  #     - name: Install HDF5
-  #       run: sudo apt update && sudo apt install -y libhdf5-dev
-  #     - shell: bash -l {0}
-  #       run: pytest modin/experimental/engines/omnisci_on_ray/test/test_dataframe.py
-  #     - shell: bash -l {0}
-  #       run: bash <(curl -s https://codecov.io/bash)
+  test-omnisci:
+    needs: prepare-cache
+    runs-on: ubuntu-latest
+    env:
+      MODIN_MEMORY: 1000000000
+      MODIN_EXPERIMENTAL: "True"
+      MODIN_ENGINE: "ray"
+      MODIN_BACKEND: "omnisci"
+    name: Test OmniSci backend, Python 3.7
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Cache pip
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-python-3.7-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
+      - name: Setting up Modin environment
+        uses: goanpeca/setup-miniconda@v1.6.0
+        with:
+          activate-environment: modin_on_omnisci
+          python-version: 3.7.8
+          environment-file: requirements/env_omnisci.yml
+          channel-priority: strict
+          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+      - name: Conda environment
+        shell: bash -l {0}
+        run: |
+          conda info
+          conda list
+      - name: Install HDF5
+        run: sudo apt update && sudo apt install -y libhdf5-dev
+      - shell: bash -l {0}
+        run: pytest modin/experimental/engines/omnisci_on_ray/test/test_dataframe.py
+      - shell: bash -l {0}
+        run: bash <(curl -s https://codecov.io/bash)
 
-  # test-all:
-  #   needs: prepare-cache
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       python-version: ["3.6", "3.7", "3.8"]
-  #       engine: ["python", "ray", "dask"]
-  #   env:
-  #     MODIN_ENGINE: ${{matrix.engine}}
-  #     MODIN_MEMORY: 1000000000
-  #   name: test-ubuntu (engine ${{matrix.engine}}, python ${{matrix.python-version}})
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #       with:
-  #         fetch-depth: 1
-  #     - name: Cache pip
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cache/pip
-  #         key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
-  #     - uses: goanpeca/setup-miniconda@v1.6.0
-  #       with:
-  #         activate-environment: modin
-  #         environment-file: environment.yml
-  #         python-version: ${{matrix.python-version}}
-  #         channel-priority: strict
-  #         use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
-  #     - name: Conda environment
-  #       shell: bash -l {0}
-  #       run: |
-  #         conda info
-  #         conda list
-  #     - name: Install HDF5
-  #       run: sudo apt update && sudo apt install -y libhdf5-dev
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_binary.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_default.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_indexing.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_iter.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_join_sort.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_map_metadata.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_reduction.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_udf.py
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_window.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_series.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_rolling.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_concat.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_groupby.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_reshape.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_general.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_io.py
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/experimental/pandas/test/test_io_exp.py
-  #     - shell: bash -l {0}
-  #       run: bash <(curl -s https://codecov.io/bash)
+  test-all:
+    needs: prepare-cache
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8"]
+        engine: ["python", "ray", "dask"]
+    env:
+      MODIN_ENGINE: ${{matrix.engine}}
+      MODIN_MEMORY: 1000000000
+    name: test-ubuntu (engine ${{matrix.engine}}, python ${{matrix.python-version}})
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Cache pip
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
+      - uses: goanpeca/setup-miniconda@v1.6.0
+        with:
+          activate-environment: modin
+          environment-file: environment.yml
+          python-version: ${{matrix.python-version}}
+          channel-priority: strict
+          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+      - name: Conda environment
+        shell: bash -l {0}
+        run: |
+          conda info
+          conda list
+      - name: Install HDF5
+        run: sudo apt update && sudo apt install -y libhdf5-dev
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_binary.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_default.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_indexing.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_iter.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_join_sort.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_map_metadata.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_reduction.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_udf.py -n=4
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_window.py -n=4
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_series.py -n=4
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_rolling.py -n=4
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_concat.py -n=4
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_groupby.py -n=4
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_reshape.py -n=4
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_general.py -n=4
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_io.py
+      - shell: bash -l {0}
+        run: python -m pytest modin/experimental/pandas/test/test_io_exp.py
+      - shell: bash -l {0}
+        run: bash <(curl -s https://codecov.io/bash)
 
-  # test-windows:
-  #   needs: prepare-cache
-  #   runs-on: windows-latest
-  #   strategy:
-  #     matrix:
-  #       python-version: ["3.6", "3.7", "3.8"]
-  #       engine: ["ray", "dask"]
-  #       part: ["DataFrame", 3]
-  #   env:
-  #     MODIN_ENGINE: ${{matrix.engine}}
-  #     MODIN_MEMORY: 1000000000
-  #   name: test-windows
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #       with:
-  #         fetch-depth: 1
-  #     - name: Cache pip
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~\AppData\Local\pip\Cache
-  #         key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
-  #     - uses: goanpeca/setup-miniconda@v1.6.0
-  #       with:
-  #         activate-environment: modin
-  #         environment-file: environment.yml
-  #         python-version: ${{matrix.python-version}}
-  #         channel-priority: strict
-  #         use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
-  #         auto-update-conda: true # this enable `use-only-tar-bz2` feature on Windows
-  #     - name: Conda environment
-  #       shell: bash -l {0}
-  #       run: |
-  #         conda info
-  #         conda list
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_binary.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_default.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_indexing.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_iter.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_join_sort.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_map_metadata.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_reduction.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_udf.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: pytest modin/pandas/test/dataframe/test_window.py
-  #       if: matrix.part == 'DataFrame'
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_series.py
-  #       if: matrix.part == 3
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_rolling.py
-  #       if: matrix.part == 3
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_concat.py
-  #       if: matrix.part == 3
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_groupby.py
-  #       if: matrix.part == 3
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_reshape.py
-  #       if: matrix.part == 3
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_general.py
-  #       if: matrix.part == 3
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_io.py
-  #       if: matrix.part == 3
-  #     - shell: bash -l {0}
-  #       run: choco install codecov
-  #     - shell: bash -l {0}
-  #       run: codecov -f ./coverage.xml
+  test-windows:
+    needs: prepare-cache
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8"]
+        engine: ["ray", "dask"]
+        part: ["DataFrame", 3]
+    env:
+      MODIN_ENGINE: ${{matrix.engine}}
+      MODIN_MEMORY: 1000000000
+    name: test-windows
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Cache pip
+        uses: actions/cache@v1
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
+      - uses: goanpeca/setup-miniconda@v1.6.0
+        with:
+          activate-environment: modin
+          environment-file: environment.yml
+          python-version: ${{matrix.python-version}}
+          channel-priority: strict
+          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+          auto-update-conda: true # this enable `use-only-tar-bz2` feature on Windows
+      - name: Conda environment
+        shell: bash -l {0}
+        run: |
+          conda info
+          conda list
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_binary.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_binary.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_default.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_default.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_indexing.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_indexing.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_iter.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_iter.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_join_sort.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_join_sort.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_map_metadata.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_map_metadata.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_reduction.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_reduction.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_udf.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_udf.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_window.py
+        if: matrix.part == 'DataFrame' && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: pytest modin/pandas/test/dataframe/test_window.py -n=4
+        if: matrix.part == 'DataFrame' && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_series.py
+        if: matrix.part == 3 && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_series.py -n=4
+        if: matrix.part == 3 && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_rolling.py
+        if: matrix.part == 3 && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_rolling.py -n=4
+        if: matrix.part == 3 && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_concat.py
+        if: matrix.part == 3 && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_concat.py -n=4
+        if: matrix.part == 3 && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_groupby.py
+        if: matrix.part == 3 && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_groupby.py -n=4
+        if: matrix.part == 3 && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_reshape.py
+        if: matrix.part == 3 && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_reshape.py -n=4
+        if: matrix.part == 3 && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_general.py
+        if: matrix.part == 3 && matrix.engine == 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_general.py -n=4
+        if: matrix.part == 3 && matrix.engine != 'ray'
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_io.py
+        if: matrix.part == 3
+      - shell: bash -l {0}
+        run: choco install codecov
+      - shell: bash -l {0}
+        run: codecov -f ./coverage.xml
 
-  # test-pyarrow:
-  #   needs: prepare-cache
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       python-version: ["3.6", "3.7", "3.8"]
-  #   env:
-  #     MODIN_BACKEND: pyarrow
-  #     MODIN_EXPERIMENTAL: "True"
-  #   name: test (pyarrow, python ${{matrix.python-version}})
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #       with:
-  #         fetch-depth: 1
-  #     - name: Cache pip
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cache/pip
-  #         key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
-  #     - uses: goanpeca/setup-miniconda@v1.6.0
-  #       with:
-  #         activate-environment: modin
-  #         environment-file: environment.yml
-  #         python-version: ${{matrix.python-version}}
-  #         channel-priority: strict
-  #         use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
-  #     - name: Conda environment
-  #       shell: bash -l {0}
-  #       run: |
-  #         conda info
-  #         conda list
-  #     - run: sudo apt update && sudo apt install -y libhdf5-dev
-  #     - shell: bash -l {0}
-  #       run: python -m pytest modin/pandas/test/test_io.py::test_from_csv
+  test-pyarrow:
+    needs: prepare-cache
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8"]
+    env:
+      MODIN_BACKEND: pyarrow
+      MODIN_EXPERIMENTAL: "True"
+    name: test (pyarrow, python ${{matrix.python-version}})
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Cache pip
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ github.run_id }}-${{ hashFiles('environment.yml') }}
+      - uses: goanpeca/setup-miniconda@v1.6.0
+        with:
+          activate-environment: modin
+          environment-file: environment.yml
+          python-version: ${{matrix.python-version}}
+          channel-priority: strict
+          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+      - name: Conda environment
+        shell: bash -l {0}
+        run: |
+          conda info
+          conda list
+      - run: sudo apt update && sudo apt install -y libhdf5-dev
+      - shell: bash -l {0}
+        run: python -m pytest modin/pandas/test/test_io.py::test_from_csv
