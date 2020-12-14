@@ -886,6 +886,87 @@ def test_reset_index(data):
     df_equals(modin_df_cp, pd_df_cp)
 
 
+@pytest.mark.parametrize(
+    "data", ["simple"] + test_data_values, ids=(["simple"] + test_data_keys)
+)
+@pytest.mark.parametrize("level", [None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]])
+@pytest.mark.parametrize("col_level", [None, 0, 1, 2])
+@pytest.mark.parametrize("col_fill", [None, 0, 1, 2, "col_one", 5, 222.222, "new"])
+def test_reset_index_with_multi_index(data, level, col_level, col_fill):
+    if data == "simple":
+        simple_data = [
+            [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8],
+            ["d21", "d22", "d23", "d24", "d25", "d26", "d27", "d28"],
+            [3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8],
+            ["d41", "d42", "d43", "d44", "d45", "d46", "d47", "d48"],
+            [5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8],
+            ["d61", "d62", "d63", "d64", "d65", "d66", "d67", "d68"],
+            [7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8],
+            ["d81", "d82", "d83", "d84", "d85", "d86", "d87", "d88"],
+        ]
+        index = pandas.MultiIndex.from_product([[True, False], ["index_one", "index_two"], [3, 4]], names=["bool", "string", "int"])
+        columns = pandas.MultiIndex.from_product([[111.111, 222.222], ["col_one", "col_two"], [5, 6]], names=["float", "string", "int"])
+        modin_df = pd.DataFrame(simple_data, index=index, columns=columns)
+        pandas_df = pandas.DataFrame(simple_data, index=index, columns=columns)
+    else:
+        modin_df = pd.DataFrame(data)
+        pandas_df = pandas.DataFrame(data)
+
+    col0 = modin_df.columns[0]
+    col1 = modin_df.columns[1]
+    col2 = modin_df.columns[2]
+    modin_cols = modin_df.groupby([col0, col1]).count().reset_index().columns
+    pandas_cols = pandas_df.groupby([col0, col1]).count().reset_index().columns
+
+    assert modin_cols.equals(pandas_cols)
+
+    if data != "simple":
+        def make_index_from_3_columns(df, index_prefix):
+            # Filter out duplicated occurrences in first 3 columns
+            df = df.loc[~df.iloc[:, 0:3].duplicated()]
+            # Set index to use 3-levels from first 3 columns contents
+            df = df.set_index([df.columns[0], df.columns[1], df.columns[2]])
+            # Assign new multiindex level names
+            df.index.set_names([index_prefix + "_1", index_prefix + "_2", index_prefix + "_3"], inplace=True)
+            return df
+
+        modin_df = make_index_from_3_columns(modin_df, "columns")
+        pandas_df = make_index_from_3_columns(pandas_df, "columns")
+        df_equals(modin_df, pandas_df)
+        modin_df = modin_df.T
+        pandas_df = pandas_df.T
+        df_equals(modin_df, pandas_df)
+        modin_df = make_index_from_3_columns(modin_df, "index")
+        pandas_df = make_index_from_3_columns(pandas_df, "index")
+        df_equals(modin_df, pandas_df)
+
+    modin_reset = modin_df.reset_index()
+    pandas_reset = pandas_df.reset_index()
+    df_equals(modin_reset, pandas_reset)
+
+    modin_reset = modin_df.reset_index(level=level, col_level=col_level, col_fill=col_fill)
+    pandas_reset = pandas_df.reset_index(level=level, col_level=col_level, col_fill=col_fill)
+    df_equals(modin_reset, pandas_reset)
+
+
+def test_reset_index_with_named_index():
+    modin_df = pd.DataFrame(test_data_values[0])
+    pandas_df = pandas.DataFrame(test_data_values[0])
+
+    modin_df.index.name = pandas_df.index.name = "NAME_OF_INDEX"
+    df_equals(modin_df, pandas_df)
+    df_equals(modin_df.reset_index(drop=False), pandas_df.reset_index(drop=False))
+
+    modin_df.reset_index(drop=True, inplace=True)
+    pandas_df.reset_index(drop=True, inplace=True)
+    df_equals(modin_df, pandas_df)
+
+    modin_df = pd.DataFrame(test_data_values[0])
+    pandas_df = pandas.DataFrame(test_data_values[0])
+    modin_df.index.name = pandas_df.index.name = "NEW_NAME"
+    df_equals(modin_df.reset_index(drop=False), pandas_df.reset_index(drop=False))
+
+
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
 @pytest.mark.parametrize("axis", axis_values, ids=axis_keys)
 def test_sample(data, axis):
