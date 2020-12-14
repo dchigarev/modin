@@ -2859,10 +2859,15 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     def write_items(self, row_numeric_index, col_numeric_index, broadcasted_items):
         def iloc_mut(partition, row_internal_indices, col_internal_indices, item):
+            #breakpoint()
             partition = partition.copy()
             partition.iloc[row_internal_indices, col_internal_indices] = item
             return partition
 
+        if isinstance(broadcasted_items, type(self)):
+            ErrorMessage.default_to_pandas("2D iloc/loc assignment")
+            broadcasted_items = broadcasted_items.to_numpy()
+        #breakpoint()
         new_modin_frame = self._modin_frame._apply_select_indices(
             axis=None,
             func=iloc_mut,

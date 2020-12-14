@@ -447,6 +447,19 @@ def test_iloc_assignment():
     df_equals(modin_df, pandas_df)
 
 
+def test_loc_2d_assignment():
+    data = {'A':[np.nan,'c','b','a'],'B':['d','b','a','d'],'C':[1,2,3,4],'D':[3,4,1,3],'E':[1,1,1,1]}
+    md_df, pd_df = create_test_dfs(data)
+
+    md_df.loc[:,['D','C']] = md_df.loc[:,['D','C']].astype('float')
+    pd_df.loc[:,['D','C']] = pd_df.loc[:,['D','C']].astype('float')
+    df_equals(md_df, pd_df)
+
+    md_df.loc[:2, ["A", "B"]] = (md_df.loc[:2, ["A", "B"]] + md_df.loc[:2, ["A", "B"]]).to_numpy()
+    pd_df.loc[:2, ["A", "B"]] = (pd_df.loc[:2, ["A", "B"]] + pd_df.loc[:2, ["A", "B"]]).to_numpy()
+    df_equals(md_df, pd_df)
+
+
 @pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
 def test_iloc_nested_assignment(data):
     modin_df = pd.DataFrame(data)

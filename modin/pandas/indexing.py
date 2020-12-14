@@ -333,8 +333,12 @@ class _LocationIndexerBase(object):
         # TODO (devin-petersohn): Apply to slice without conversion to list
         if isinstance(row_lookup, slice):
             row_lookup = range(len(self.qc.index))[row_lookup]
+        elif is_list_like(row_lookup):
+            row_lookup = np.sort(row_lookup)
         if isinstance(col_lookup, slice):
             col_lookup = range(len(self.qc.columns))[col_lookup]
+        elif is_list_like(col_lookup):
+            col_lookup = np.sort(col_lookup)
         # This is True when we dealing with assignment of a full column. This case
         # should be handled in a fastpath with `df[col] = item`.
         if axis == 0:
@@ -348,16 +352,10 @@ class _LocationIndexerBase(object):
             self.df._create_or_update_from_compiler(new_qc, inplace=True)
         # Assignment to both axes.
         else:
-            if isinstance(row_lookup, slice):
-                new_row_len = len(self.df.index[row_lookup])
-            else:
-                new_row_len = len(row_lookup)
-            if isinstance(col_lookup, slice):
-                new_col_len = len(self.df.columns[col_lookup])
-            else:
-                new_col_len = len(col_lookup)
-            to_shape = new_row_len, new_col_len
-            item = self._broadcast_item(row_lookup, col_lookup, item, to_shape)
+            new_row = self.df.index[row_lookup]
+            new_col = self.df.columns[col_lookup]
+            to_shape = len(new_row), len(new_col)
+            item = self._broadcast_item(new_row, new_col, item, to_shape)
             self._write_items(row_lookup, col_lookup, item)
 
     def _broadcast_item(self, row_lookup, col_lookup, item, to_shape):
@@ -384,21 +382,10 @@ class _LocationIndexerBase(object):
         """
         # It is valid to pass a DataFrame or Series to __setitem__ that is larger than
         # the target the user is trying to overwrite. This
-        if isinstance(item, (pandas.Series, pandas.DataFrame, DataFrame)):
-            if not all(idx in item.index for idx in row_lookup):
-                raise ValueError(
-                    "Must have equal len keys and value when setting with "
-                    "an iterable"
-                )
-            if hasattr(item, "columns"):
-                if not all(idx in item.columns for idx in col_lookup):
-                    raise ValueError(
-                        "Must have equal len keys and value when setting "
-                        "with an iterable"
-                    )
-                item = item.reindex(index=row_lookup, columns=col_lookup)
-            else:
-                item = item.reindex(index=row_lookup)
+        if isinstance(item, Series):
+            return item.reindex(index=row_lookup)
+        elif isinstance(item, DataFrame):
+            return item.reindex(index=row_lookup, columns=col_lookup)
         try:
             item = np.array(item)
             if np.prod(to_shape) == np.prod(item.shape):
@@ -430,6 +417,9 @@ class _LocationIndexerBase(object):
         -------
         What this returns (if anything)
         """
+        if isinstance(item, (Series, DataFrame)):
+            item = item._query_compiler
+        #breakpoint()
         new_qc = self.qc.write_items(row_lookup, col_lookup, item)
         self.df._create_or_update_from_compiler(new_qc, inplace=True)
 
@@ -584,6 +574,7 @@ class _LocIndexer(_LocationIndexerBase):
         What this returns (if anything)
         """
         row_loc, col_loc, _, row_scaler, col_scaler = _parse_tuple(key)
+        #breakpoint()
         if isinstance(row_loc, list) and len(row_loc) == 1:
             if row_loc[0] not in self.qc.index:
                 index = self.qc.index.insert(len(self.qc.index), row_loc[0])
