@@ -915,8 +915,8 @@ def test_reset_index_with_multi_index(data, level, col_level, col_fill):
     col0 = modin_df.columns[0]
     col1 = modin_df.columns[1]
     col2 = modin_df.columns[2]
-    modin_cols = modin_df.groupby([col0, col1]).count().reset_index().columns
     pandas_cols = pandas_df.groupby([col0, col1]).count().reset_index().columns
+    modin_cols = modin_df.groupby([col0, col1]).count().reset_index().columns
 
     assert modin_cols.equals(pandas_cols)
 
@@ -947,8 +947,8 @@ def test_reset_index_with_multi_index(data, level, col_level, col_fill):
         kwargs["col_level"] = col_level
     if col_fill != "no_col_fill":
         kwargs["col_fill"] = col_fill
-    modin_reset = modin_df.reset_index(**kwargs)
     pandas_reset = pandas_df.reset_index(**kwargs)
+    modin_reset = modin_df.reset_index(**kwargs)
     df_equals(modin_reset, pandas_reset)
 
 
