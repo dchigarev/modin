@@ -922,10 +922,12 @@ def test_reset_index_with_multi_index(data, level, col_level, col_fill):
 
     if data != "simple":
         def make_index_from_3_columns(df, index_prefix):
+            # NaNs in column names lead to all kinds of weird behavior unrelated to this test
+            df.fillna(value=0, inplace=True)
             # Filter out duplicated occurrences in first 3 columns
             df = df.loc[~df.iloc[:, 0:3].duplicated()]
             # Set index to use 3-levels from first 3 columns contents
-            df = df.set_index([df.columns[0], df.columns[1], df.columns[2]])
+            df.set_index([df.columns[0], df.columns[1], df.columns[2]], inplace=True)
             # Assign new multiindex level names
             df.index.set_names([index_prefix + "_1", index_prefix + "_2", index_prefix + "_3"], inplace=True)
             return df
