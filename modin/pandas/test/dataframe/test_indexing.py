@@ -889,9 +889,9 @@ def test_reset_index(data):
 @pytest.mark.parametrize(
     "data", ["simple"] + test_data_values, ids=(["simple"] + test_data_keys)
 )
-@pytest.mark.parametrize("level", [None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]])
-@pytest.mark.parametrize("col_level", [None, 0, 1, 2])
-@pytest.mark.parametrize("col_fill", [None, 0, 1, 2, "col_one", 5, 222.222, "new"])
+@pytest.mark.parametrize("level", ["no_level", None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]])
+@pytest.mark.parametrize("col_level", ["no_col_level", 0, 1, 2])
+@pytest.mark.parametrize("col_fill", ["no_col_fill", None, 0, 1, 2, "col_one", 5, 222.222, "new"])
 def test_reset_index_with_multi_index(data, level, col_level, col_fill):
     if data == "simple":
         simple_data = [
@@ -940,12 +940,15 @@ def test_reset_index_with_multi_index(data, level, col_level, col_fill):
         pandas_df = make_index_from_3_columns(pandas_df, "index")
         df_equals(modin_df, pandas_df)
 
-    modin_reset = modin_df.reset_index()
-    pandas_reset = pandas_df.reset_index()
-    df_equals(modin_reset, pandas_reset)
-
-    modin_reset = modin_df.reset_index(level=level, col_level=col_level, col_fill=col_fill)
-    pandas_reset = pandas_df.reset_index(level=level, col_level=col_level, col_fill=col_fill)
+    kwargs = {}
+    if level != "no_level":
+        kwargs["level"] = level
+    if col_level != "no_col_level":
+        kwargs["col_level"] = col_level
+    if col_fill != "no_col_fill":
+        kwargs["col_fill"] = col_fill
+    modin_reset = modin_df.reset_index(**kwargs)
+    pandas_reset = pandas_df.reset_index(**kwargs)
     df_equals(modin_reset, pandas_reset)
 
 
