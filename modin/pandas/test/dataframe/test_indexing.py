@@ -889,9 +889,14 @@ def test_reset_index(data):
 @pytest.mark.parametrize(
     "data", ["simple"] + test_data_values, ids=(["simple"] + test_data_keys)
 )
-@pytest.mark.parametrize("level", ["no_level", None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]])
+@pytest.mark.parametrize(
+    "level",
+    ["no_level", None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]],
+)
 @pytest.mark.parametrize("col_level", ["no_col_level", 0, 1, 2])
-@pytest.mark.parametrize("col_fill", ["no_col_fill", None, 0, 1, 2, "col_one", 5, 222.222, "new"])
+@pytest.mark.parametrize(
+    "col_fill", ["no_col_fill", 0, 1, 2, "col_one", 5, 222.222, "new"]
+)
 def test_reset_index_with_multi_index(data, level, col_level, col_fill):
     if data == "simple":
         simple_data = [
@@ -904,8 +909,14 @@ def test_reset_index_with_multi_index(data, level, col_level, col_fill):
             [7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8],
             ["d81", "d82", "d83", "d84", "d85", "d86", "d87", "d88"],
         ]
-        index = pandas.MultiIndex.from_product([[True, False], ["index_one", "index_two"], [3, 4]], names=["bool", "string", "int"])
-        columns = pandas.MultiIndex.from_product([[111.111, 222.222], ["col_one", "col_two"], [5, 6]], names=["float", "string", "int"])
+        index = pandas.MultiIndex.from_product(
+            [[True, False], ["index_one", "index_two"], [3, 4]],
+            names=["bool", "string", "int"],
+        )
+        columns = pandas.MultiIndex.from_product(
+            [[111.111, 222.222], ["col_one", "col_two"], [5, 6]],
+            names=["float", "string", "int"],
+        )
         modin_df = pd.DataFrame(simple_data, index=index, columns=columns)
         pandas_df = pandas.DataFrame(simple_data, index=index, columns=columns)
     else:
@@ -914,13 +925,14 @@ def test_reset_index_with_multi_index(data, level, col_level, col_fill):
 
     col0 = modin_df.columns[0]
     col1 = modin_df.columns[1]
-    col2 = modin_df.columns[2]
-    pandas_cols = pandas_df.groupby([col0, col1]).count().reset_index().columns
-    modin_cols = modin_df.groupby([col0, col1]).count().reset_index().columns
-
-    assert modin_cols.equals(pandas_cols)
+    pdf = pandas_df.groupby([col0, col1]).count()
+    pandas_reset = pdf.reset_index()
+    mdf = modin_df.groupby([col0, col1]).count()
+    modin_reset = mdf.reset_index()
+    df_equals(modin_reset, pandas_reset)
 
     if data != "simple":
+
         def make_index_from_3_columns(df, index_prefix):
             # NaNs in column names lead to all kinds of weird behavior unrelated to this test
             df.fillna(value=0, inplace=True)
@@ -929,7 +941,10 @@ def test_reset_index_with_multi_index(data, level, col_level, col_fill):
             # Set index to use 3-levels from first 3 columns contents
             df.set_index([df.columns[0], df.columns[1], df.columns[2]], inplace=True)
             # Assign new multiindex level names
-            df.index.set_names([index_prefix + "_1", index_prefix + "_2", index_prefix + "_3"], inplace=True)
+            df.index.set_names(
+                [index_prefix + "_1", index_prefix + "_2", index_prefix + "_3"],
+                inplace=True,
+            )
             return df
 
         modin_df = make_index_from_3_columns(modin_df, "columns")

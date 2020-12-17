@@ -562,17 +562,46 @@ class PandasQueryCompiler(BaseQueryCompiler):
         drop = kwargs.get("drop", False)
         level = kwargs.get("level", None)
         # TODO Implement level
-        if level is not None or self.has_multiindex():
+        if level is not None:
             return self.default_to_pandas(pandas.DataFrame.reset_index, **kwargs)
         if not drop:
-            new_column_name = (
-                self.index.name
-                if self.index.name is not None
-                else "index"
-                if "index" not in self.columns
-                else "level_0"
-            )
-            new_self = self.insert(0, new_column_name, self.index)
+            if self.has_multiindex():
+                col_level = kwargs.get("col_level", 0)
+                col_fill = kwargs.get("col_fill", "")
+                # Convert multiindex into a dataframe with columns containing multiindex levels
+                mi_frame = self.index.to_frame()
+                self_column_levels = (
+                    len(self.columns.levels)
+                    if isinstance(self.columns, pandas.MultiIndex)
+                    else 1
+                )
+                mi_frame_column_levels = (
+                    len(mi_frame.columns.levels)
+                    if isinstance(mi_frame.columns, pandas.MultiIndex)
+                    else 1
+                )
+                if self_column_levels > 1 and mi_frame_column_levels == 1:
+                    # Convert multiindex frame single level columns into multilevel columns
+                    mi_frame.columns = pandas.MultiIndex.from_arrays(
+                        [
+                            mi_frame.columns.to_list()
+                            if lll == col_level
+                            else [col_fill for i in range(0, len(mi_frame.columns))]
+                            for lll in range(0, len(self.columns.levels))
+                        ]
+                    )
+                index_columns = self.from_pandas(mi_frame, type(self._modin_frame))
+                new_self = index_columns.concat(1, [self])
+                new_self.columns.names = self.columns.names
+            else:
+                new_column_name = (
+                    self.index.name
+                    if self.index.name is not None
+                    else "index"
+                    if "index" not in self.columns
+                    else "level_0"
+                )
+                new_self = self.insert(0, new_column_name, self.index)
         else:
             new_self = self.copy()
         new_self.index = pandas.RangeIndex(len(new_self.index))
