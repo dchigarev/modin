@@ -35,6 +35,7 @@ from modin.pandas.test.utils import (
     int_arg_values,
     create_test_dfs,
     eval_general,
+    generate_multiindex,
 )
 
 pd.DEFAULT_NPARTITIONS = 4
@@ -886,94 +887,103 @@ def test_reset_index(data):
     df_equals(modin_df_cp, pd_df_cp)
 
 
-@pytest.mark.parametrize(
-    "data", ["simple"] + test_data_values, ids=(["simple"] + test_data_keys)
-)
+@pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+@pytest.mark.parametrize("nlevels", [3])
+@pytest.mark.parametrize("columns_multiindex", [True, False])
 @pytest.mark.parametrize(
     "level",
     ["no_level", None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]],
 )
 @pytest.mark.parametrize("col_level", ["no_col_level", 0, 1, 2])
 @pytest.mark.parametrize(
-    "col_fill", ["no_col_fill", 0, 1, 2, "col_one", 5, 222.222, "new"]
+    "col_fill", ["no_col_fill", None, 0, "col_one", 222.222, "new"]
 )
-def test_reset_index_with_multi_index(data, level, col_level, col_fill):
-    if data == "simple":
-        simple_data = [
-            [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8],
-            ["d21", "d22", "d23", "d24", "d25", "d26", "d27", "d28"],
-            [3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8],
-            ["d41", "d42", "d43", "d44", "d45", "d46", "d47", "d48"],
-            [5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8],
-            ["d61", "d62", "d63", "d64", "d65", "d66", "d67", "d68"],
-            [7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8],
-            ["d81", "d82", "d83", "d84", "d85", "d86", "d87", "d88"],
-        ]
-        index = pandas.MultiIndex.from_product(
-            [[True, False], ["index_one", "index_two"], [3, 4]],
-            names=["bool", "string", "int"],
-        )
-        columns = pandas.MultiIndex.from_product(
-            [[111.111, 222.222], ["col_one", "col_two"], [5, 6]],
-            names=["float", "string", "int"],
-        )
-        modin_df = pd.DataFrame(simple_data, index=index, columns=columns)
-        pandas_df = pandas.DataFrame(simple_data, index=index, columns=columns)
-    else:
-        modin_df = pd.DataFrame(data)
-        pandas_df = pandas.DataFrame(data)
-
-    col0 = modin_df.columns[0]
-    col1 = modin_df.columns[1]
-    pdf = pandas_df.groupby([col0, col1]).count()
-    pandas_reset = pdf.reset_index()
-    mdf = modin_df.groupby([col0, col1]).count()
-    modin_reset = mdf.reset_index()
-    df_equals(modin_reset, pandas_reset)
-
-    if data != "simple":
-
-        def make_index_from_3_columns(df, index_prefix):
-            # NaNs in column names lead to all kinds of weird behavior unrelated to this test
-            df.fillna(value=0, inplace=True)
-            # Filter out duplicated occurrences in first 3 columns
-            df = df.loc[~df.iloc[:, 0:3].duplicated()]
-            # Set index to use 3-levels from first 3 columns contents
-            df.set_index([df.columns[0], df.columns[1], df.columns[2]], inplace=True)
-            # Assign new multiindex level names
-            df.index.set_names(
-                [index_prefix + "_1", index_prefix + "_2", index_prefix + "_3"],
-                inplace=True,
+@pytest.mark.parametrize("drop", [False])
+@pytest.mark.parametrize("multiindex_levels_names_max_levels", [0, 1, 2, 3, 4])
+def test_reset_index_with_multi_index_no_drop(
+    data,
+    nlevels,
+    columns_multiindex,
+    level,
+    col_level,
+    col_fill,
+    drop,
+    multiindex_levels_names_max_levels,
+):
+    data_rows = len(data[list(data.keys())[0]])
+    index = generate_multiindex(data_rows, nlevels=nlevels)
+    data_columns = len(data.keys())
+    columns = (
+        generate_multiindex(data_columns, nlevels=nlevels)
+        if columns_multiindex
+        else pandas.RangeIndex(0, data_columns)
+    )
+    index.names = (
+        [f"level_{i}" for i in range(index.nlevels)]
+        if multiindex_levels_names_max_levels == 0
+        else [
+            tuple(
+                [
+                    f"level_{i}_name_{j}"
+                    for j in range(
+                        0,
+                        max(multiindex_levels_names_max_levels + 1 - index.nlevels, 0)
+                        + i,
+                    )
+                ]
             )
-            return df
+            if max(multiindex_levels_names_max_levels + 1 - index.nlevels, 0) + i > 0
+            else f"level_{i}"
+            for i in range(index.nlevels)
+        ]
+    )
 
-        modin_df = make_index_from_3_columns(modin_df, "columns")
-        pandas_df = make_index_from_3_columns(pandas_df, "columns")
-        df_equals(modin_df, pandas_df)
-        modin_df = modin_df.T
-        pandas_df = pandas_df.T
-        df_equals(modin_df, pandas_df)
-        modin_df = make_index_from_3_columns(modin_df, "index")
-        pandas_df = make_index_from_3_columns(pandas_df, "index")
-        df_equals(modin_df, pandas_df)
+    modin_df = pd.DataFrame(data, index=index, columns=columns)
+    pandas_df = pandas.DataFrame(data, index=index, columns=columns)
 
-    kwargs = {}
+    kwargs = {"drop": drop}
     if level != "no_level":
         kwargs["level"] = level
     if col_level != "no_col_level":
         kwargs["col_level"] = col_level
     if col_fill != "no_col_fill":
         kwargs["col_fill"] = col_fill
-    pandas_reset = pandas_df.reset_index(**kwargs)
-    modin_reset = modin_df.reset_index(**kwargs)
-    df_equals(modin_reset, pandas_reset)
+    eval_general(modin_df, pandas_df, lambda df: df.reset_index(**kwargs))
 
 
-def test_reset_index_with_named_index():
+@pytest.mark.parametrize("data", test_data_values, ids=test_data_keys)
+@pytest.mark.parametrize("nlevels", [3])
+@pytest.mark.parametrize(
+    "level",
+    ["no_level", None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]],
+)
+@pytest.mark.parametrize("multiindex_levels_names_max_levels", [0, 1, 2, 3, 4])
+def test_reset_index_with_multi_index_drop(
+    data, nlevels, level, multiindex_levels_names_max_levels
+):
+    test_reset_index_with_multi_index_no_drop(
+        data,
+        nlevels,
+        True,
+        level,
+        "no_col_level",
+        "no_col_fill",
+        True,
+        multiindex_levels_names_max_levels,
+    )
+
+
+@pytest.mark.parametrize("index_levels_names_max_levels", [0, 1, 2])
+def test_reset_index_with_named_index(index_levels_names_max_levels):
     modin_df = pd.DataFrame(test_data_values[0])
     pandas_df = pandas.DataFrame(test_data_values[0])
 
-    modin_df.index.name = pandas_df.index.name = "NAME_OF_INDEX"
+    index_name = (
+        tuple([f"name_{j}" for j in range(0, index_levels_names_max_levels)])
+        if index_levels_names_max_levels > 0
+        else "NAME_OF_INDEX"
+    )
+    modin_df.index.name = pandas_df.index.name = index_name
     df_equals(modin_df, pandas_df)
     df_equals(modin_df.reset_index(drop=False), pandas_df.reset_index(drop=False))
 
@@ -983,7 +993,7 @@ def test_reset_index_with_named_index():
 
     modin_df = pd.DataFrame(test_data_values[0])
     pandas_df = pandas.DataFrame(test_data_values[0])
-    modin_df.index.name = pandas_df.index.name = "NEW_NAME"
+    modin_df.index.name = pandas_df.index.name = index_name
     df_equals(modin_df.reset_index(drop=False), pandas_df.reset_index(drop=False))
 
 
