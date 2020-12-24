@@ -562,30 +562,73 @@ class PandasQueryCompiler(BaseQueryCompiler):
         drop = kwargs.get("drop", False)
         level = kwargs.get("level", None)
         new_index = None
+        if self.has_multiindex() and level is not None:
+            if not isinstance(level, (tuple, list)):
+                level = [level]
+            level = [self.index._get_level_number(lev) for lev in level]
+            uniq_sorted_level = sorted(set(level))
+            if len(level) < self.index.nlevels:
+                new_index = self.index.droplevel(uniq_sorted_level)
         if not drop:
+            # Some parts of index remain in place
             if self.has_multiindex():
                 col_level = kwargs.get("col_level", 0)
                 col_fill = kwargs.get("col_fill", "")
+
                 # Convert multiindex into a dataframe with columns containing multiindex levels
                 mi_frame = self.index.to_frame()
+                # Overwrite constructed columns index because it ruins tuples with NaNs since
+                # tupleize_cols is True by default
+                mi_frame.columns = pandas.Index(self.index.names, tupleize_cols=False)
+
                 if level is not None:
-                    if not isinstance(level, (tuple, list)):
-                        level = [level]
-                    level = [self.index._get_level_number(lev) for lev in level]
-                    uniq_sorted_level = sorted(set(level))
-                    if len(level) < self.index.nlevels:
-                        new_index = self.index.droplevel(uniq_sorted_level)
                     mi_frame = mi_frame.iloc[:, uniq_sorted_level]
-                if self.columns.nlevels > 1 and mi_frame.columns.nlevels == 1:
-                    # Convert multiindex frame single level columns into multilevel columns
-                    mi_frame.columns = pandas.MultiIndex.from_arrays(
-                        [
-                            mi_frame.columns.to_list()
-                            if lll == col_level
-                            else [col_fill for i in range(0, len(mi_frame.columns))]
-                            for lll in range(0, self.columns.nlevels)
-                        ]
-                    )
+                if isinstance(self.columns, pandas.MultiIndex):
+                    items = []
+                    if col_fill is None:
+                        # Initialize col_fill if it is None.
+                        # This is some weird undocumented Pandas behavior to take first
+                        # element of the last column name.
+                        last_col_name = mi_frame.columns[-1]
+                        last_col_name = (
+                            list(last_col_name)
+                            if isinstance(last_col_name, tuple)
+                            else [last_col_name]
+                        )
+                        if len(last_col_name) not in (1, self.columns.nlevels):
+                            raise ValueError(
+                                "col_fill=None is incompatible "
+                                f"with incomplete column name {last_col_name}"
+                            )
+                        col_fill = last_col_name[0]
+                    for mi_frame_level in mi_frame.columns:
+                        # Expand tuples into separate items and fill the rest with col_fill
+                        item = tuple(
+                            [col_fill for i in range(0, col_level)]
+                            + (
+                                list(mi_frame_level)
+                                if isinstance(mi_frame_level, tuple)
+                                else [mi_frame_level]
+                            )
+                            + [
+                                col_fill
+                                for i in range(
+                                    col_level
+                                    + (
+                                        len(mi_frame_level)
+                                        if isinstance(mi_frame_level, tuple)
+                                        else 1
+                                    ),
+                                    self.columns.nlevels,
+                                )
+                            ]
+                        )
+                        if len(item) > self.columns.nlevels:
+                            raise ValueError(
+                                "Item must have length equal to number of levels."
+                            )
+                        items.append(item)
+                    mi_frame.columns = pandas.MultiIndex.from_tuples(items)
                 index_columns = self.from_pandas(mi_frame, type(self._modin_frame))
                 new_self = index_columns.concat(1, [self])
                 new_self.columns.names = self.columns.names
@@ -600,6 +643,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 new_self = self.insert(0, new_column_name, self.index)
         else:
             new_self = self.copy()
+
         new_self.index = (
             pandas.RangeIndex(len(new_self.index)) if new_index is None else new_index
         )
