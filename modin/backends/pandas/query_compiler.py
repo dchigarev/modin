@@ -577,9 +577,14 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
                 # Convert multiindex into a dataframe with columns containing multiindex levels
                 mi_frame = self.index.to_frame()
+                # Replace Nones with synthetic level name
+                names_list = [
+                    f"level_{level_number}" if level_name is None else level_name
+                    for level_number, level_name in enumerate(self.index.names)
+                ]
                 # Overwrite constructed columns index because it ruins tuples with NaNs since
                 # tupleize_cols is True by default
-                mi_frame.columns = pandas.Index(self.index.names, tupleize_cols=False)
+                mi_frame.columns = pandas.Index(names_list, tupleize_cols=False)
 
                 if level is not None:
                     mi_frame = mi_frame.iloc[:, uniq_sorted_level]
@@ -603,26 +608,16 @@ class PandasQueryCompiler(BaseQueryCompiler):
                         col_fill = last_col_name[0]
                     for mi_frame_level in mi_frame.columns:
                         # Expand tuples into separate items and fill the rest with col_fill
-                        item = tuple(
-                            [col_fill for i in range(0, col_level)]
-                            + (
-                                list(mi_frame_level)
-                                if isinstance(mi_frame_level, tuple)
-                                else [mi_frame_level]
-                            )
-                            + [
-                                col_fill
-                                for i in range(
-                                    col_level
-                                    + (
-                                        len(mi_frame_level)
-                                        if isinstance(mi_frame_level, tuple)
-                                        else 1
-                                    ),
-                                    self.columns.nlevels,
-                                )
-                            ]
+                        top_level = [col_fill] * col_level
+                        middle_level = (
+                            list(mi_frame_level)
+                            if isinstance(mi_frame_level, tuple)
+                            else [mi_frame_level]
                         )
+                        bottom_level = [col_fill] * (
+                            self.columns.nlevels - (col_level + len(middle_level))
+                        )
+                        item = tuple(top_level + middle_level + bottom_level)
                         if len(item) > self.columns.nlevels:
                             raise ValueError(
                                 "Item must have length equal to number of levels."

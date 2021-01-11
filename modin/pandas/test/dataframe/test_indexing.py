@@ -900,6 +900,12 @@ def test_reset_index(data):
 )
 @pytest.mark.parametrize("drop", [False])
 @pytest.mark.parametrize("multiindex_levels_names_max_levels", [0, 1, 2, 3, 4])
+<<<<<<< HEAD
+=======
+@pytest.mark.parametrize(
+    "none_in_index_names", [False, True, "mixed_1st_None", "mixed_2nd_None"]
+)
+>>>>>>> 0d13d9762e9ea56199b0124917529aa32d085a7c
 def test_reset_index_with_multi_index_no_drop(
     data,
     nlevels,
@@ -909,6 +915,10 @@ def test_reset_index_with_multi_index_no_drop(
     col_fill,
     drop,
     multiindex_levels_names_max_levels,
+<<<<<<< HEAD
+=======
+    none_in_index_names,
+>>>>>>> 0d13d9762e9ea56199b0124917529aa32d085a7c
 ):
     data_rows = len(data[list(data.keys())[0]])
     index = generate_multiindex(data_rows, nlevels=nlevels)
@@ -938,6 +948,17 @@ def test_reset_index_with_multi_index_no_drop(
         ]
     )
 
+<<<<<<< HEAD
+=======
+    if none_in_index_names is True:
+        index.names = [None] * len(index.names)
+    elif none_in_index_names:
+        names_list = list(index.names)
+        start_index = 0 if none_in_index_names == "mixed_1st_None" else 1
+        names_list[start_index::2] = [None] * len(names_list[start_index::2])
+        index.names = names_list
+
+>>>>>>> 0d13d9762e9ea56199b0124917529aa32d085a7c
     modin_df = pd.DataFrame(data, index=index, columns=columns)
     pandas_df = pandas.DataFrame(data, index=index, columns=columns)
 
@@ -958,8 +979,16 @@ def test_reset_index_with_multi_index_no_drop(
     ["no_level", None, 0, 1, 2, [2, 0], [2, 1], [1, 0], [2, 1, 2], [0, 0, 0, 0]],
 )
 @pytest.mark.parametrize("multiindex_levels_names_max_levels", [0, 1, 2, 3, 4])
+<<<<<<< HEAD
 def test_reset_index_with_multi_index_drop(
     data, nlevels, level, multiindex_levels_names_max_levels
+=======
+@pytest.mark.parametrize(
+    "none_in_index_names", [False, True, "mixed-False", "mixed-True"]
+)
+def test_reset_index_with_multi_index_drop(
+    data, nlevels, level, multiindex_levels_names_max_levels, none_in_index_names
+>>>>>>> 0d13d9762e9ea56199b0124917529aa32d085a7c
 ):
     test_reset_index_with_multi_index_no_drop(
         data,
@@ -970,6 +999,10 @@ def test_reset_index_with_multi_index_drop(
         "no_col_fill",
         True,
         multiindex_levels_names_max_levels,
+<<<<<<< HEAD
+=======
+        none_in_index_names,
+>>>>>>> 0d13d9762e9ea56199b0124917529aa32d085a7c
     )
 
 
