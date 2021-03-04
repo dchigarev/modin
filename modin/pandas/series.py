@@ -1956,9 +1956,8 @@ class Series(BasePandasDataset):
                 bins=bins,
                 dropna=dropna,
             )
-
         return super(Series, self).value_counts(
-            subset=None,
+            subset=self,
             normalize=normalize,
             sort=sort,
             ascending=ascending,

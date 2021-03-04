@@ -1241,7 +1241,9 @@ def sort_index_for_equal_values(series, ascending=False):
         # GroupBy is very inconsistent about when it's doing this, so that's
         # why this clumsy if-statement is used.
         res.index = res.index.droplevel(0)
+    # GroupBy discards original index names, so restoring them here
     res.name = series.name
+    res.index.names = series.index.names
     return res
 
 
