@@ -11,43 +11,10 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-from .default import DefaultMethod
+from .default import DataFrameDefault
 
 
-class Resampler:
-    @classmethod
-    def build_resample(cls, func, squeeze_self):
-        """
-        Build function that resamples time-series data and executes
-        aggregation `func` on it.
-
-        Parameters
-        ----------
-        func: callable,
-            Aggregation function to execute under resampled frame.
-        squeeze_self: bool,
-            Whether or not to squeeze frame before resampling.
-
-        Returns
-        -------
-        callable,
-            Function that applies aggregation to resampled time-series data.
-        """
-
-        def fn(df, resample_args, *args, **kwargs):
-            if squeeze_self:
-                df = df.squeeze(axis=1)
-            resampler = df.resample(*resample_args)
-
-            if type(func) == property:
-                return func.fget(resampler)
-
-            return func(resampler, *args, **kwargs)
-
-        return fn
-
-
-class ResampleDefault(DefaultMethod):
+class ResampleDefault(DataFrameDefault):
     OBJECT_TYPE = "Resampler"
 
     @classmethod
@@ -68,7 +35,15 @@ class ResampleDefault(DefaultMethod):
         callable,
             Default to pandas function that applies aggregation to resampled time-series data.
         """
-        return super().register(
-            Resampler.build_resample(func, squeeze_self),
-            fn_name=func.__name__,
-        )
+
+        def fn(df, resample_args, *args, **kwargs):
+            if squeeze_self:
+                df = df.squeeze(axis=1)
+            resampler = df.resample(*resample_args)
+
+            if type(func) == property:
+                return func.fget(resampler)
+
+            return func(resampler, *args, **kwargs)
+
+        return super().register(fn, fn_name=func.__name__)

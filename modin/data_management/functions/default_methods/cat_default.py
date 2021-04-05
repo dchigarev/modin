@@ -20,4 +20,4 @@ class CatDefault(SeriesDefault):
     @classmethod
     def frame_wrapper(cls, df):
         """Access category accessor of the passed frame"""
-        return df.squeeze(axis=1).cat
+        return super().frame_wrapper(df).cat

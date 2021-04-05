@@ -13,15 +13,13 @@
 
 """This function module provides template for a query compiler default-to-pandas methods."""
 
-from .dataframe_default import DataFrameDefault
+from .default import DataFrameDefault
 from .datetime_default import DateTimeDefault
 from .series_default import SeriesDefault
 from .str_default import StrDefault
 from .binary_default import BinaryDefault
-from .any_default import AnyDefault
 from .resample_default import ResampleDefault
 from .rolling_default import RollingDefault
-from .default import DefaultMethod
 from .cat_default import CatDefault
 from .groupby_default import GroupByDefault
 
@@ -31,10 +29,8 @@ __all__ = [
     "SeriesDefault",
     "StrDefault",
     "BinaryDefault",
-    "AnyDefault",
     "ResampleDefault",
     "RollingDefault",
-    "DefaultMethod",
     "CatDefault",
     "GroupByDefault",
 ]

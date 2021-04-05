@@ -11,10 +11,10 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-from .any_default import AnyDefault
+from .default import DataFrameDefault
 
 
-class SeriesDefault(AnyDefault):
+class SeriesDefault(DataFrameDefault):
     """Build default-to-pandas methods which is executed under Series"""
 
     OBJECT_TYPE = "Series"

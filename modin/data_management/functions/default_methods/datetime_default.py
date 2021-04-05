@@ -20,4 +20,4 @@ class DateTimeDefault(SeriesDefault):
     @classmethod
     def frame_wrapper(cls, df):
         """Access datetime accessor of the passed frame"""
-        return df.squeeze(axis=1).dt
+        return super().frame_wrapper(df).dt

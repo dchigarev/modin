@@ -18,22 +18,19 @@ from pandas.core.dtypes.common import is_list_like
 import pandas
 
 
-class DefaultMethod(Function):
+class DataFrameDefault(Function):
     OBJECT_TYPE = "DataFrame"
 
     @classmethod
-    def register(cls, func, obj_type=pandas.DataFrame, inplace=False, fn_name=None):
+    def register(cls, func, inplace=False, fn_name=None):
         """
         Build function that do fallback to default pandas implementation for passed `func`.
 
         Parameters
         ----------
-        func: callable or str,
+        func: callable,
             Function to apply to the casted to pandas frame or its property accesed
             by `frame_wrapper`.
-        obj_type: object (default pandas.DataFrame),
-            If `func` is a string with a function name then `obj_type` provides an
-            object to search function in.
         inplace: bool (default False),
             If True return an object to which `func` was applied, otherwise return
             the result of `func`.
@@ -50,22 +47,56 @@ class DefaultMethod(Function):
         if fn_name is None:
             fn_name = getattr(func, "__name__", str(func))
 
-        if isinstance(func, str):
-            fn = getattr(obj_type, func)
-        else:
-            fn = func
+        if type(func) == property:
+            func = cls.build_property_wrapper(func)
 
-        if type(fn) == property:
-            fn = cls.build_property_wrapper(fn)
+        func = cls.build_applier(func, inplace)
+        func.__name__ = f"<function {cls.OBJECT_TYPE}.{fn_name}>"
 
-        def applyier(df, *args, **kwargs):
+        def wrapper(self, *args, **kwargs):
+            args = try_cast_to_pandas(args)
+            kwargs = try_cast_to_pandas(kwargs)
+            return self.default_to_pandas(func, *args, **kwargs)
+
+        return wrapper
+
+    @classmethod
+    def build_property_wrapper(cls, prop):
+        """Build function that access specified property of the frame"""
+
+        def property_wrapper(df):
+            return prop.fget(df)
+
+        return property_wrapper
+
+    @classmethod
+    def build_applier(cls, func, inplace):
+        """
+        Build function that will be defaulted to pandas.
+
+        Parameters
+        ----------
+        func: callable,
+            Function to apply to the casted to pandas frame or its property accesed
+            by `frame_wrapper`.
+        inplace: bool (default False),
+            If True return an object to which `func` was applied, otherwise return
+            the result of `func`.
+
+        Returns
+        -------
+        Callable,
+            Function that executes `func` under casted to pandas frame.
+        """
+
+        def applier(df, *args, **kwargs):
             """
-            This function is directly applied to the casted to pandas frame, executes target
-            function under it and processes result so it be possible to create a valid
+            This function is directly applied to the casted to pandas frame,
+            executes target function under it and processes result so it be possible to create a valid
             query compiler from it.
             """
             df = cls.frame_wrapper(df)
-            result = fn(df, *args, **kwargs)
+            result = func(df, *args, **kwargs)
 
             if (
                 not isinstance(result, pandas.Series)
@@ -86,42 +117,7 @@ class DefaultMethod(Function):
             method_scoped_inplace = inplace or kwargs.get("inplace", False)
             return result if not method_scoped_inplace else df
 
-        return cls.build_default_to_pandas(applyier, fn_name)
-
-    @classmethod
-    def build_property_wrapper(cls, prop):
-        """Build function that access specified property of the frame"""
-
-        def property_wrapper(df):
-            return prop.fget(df)
-
-        return property_wrapper
-
-    @classmethod
-    def build_default_to_pandas(cls, fn, fn_name):
-        """
-        Build function that do fallback to pandas for passed `fn`.
-
-        Parameters
-        ----------
-        fn: callable,
-            Function to apply to the defaulted frame.
-        fn_name: str,
-            Function name which will be shown in default-to-pandas warning message.
-
-        Returns
-        -------
-        Callable,
-            Method that does fallback to pandas and applies `fn` to the pandas frame.
-        """
-        fn.__name__ = f"<function {cls.OBJECT_TYPE}.{fn_name}>"
-
-        def wrapper(self, *args, **kwargs):
-            args = try_cast_to_pandas(args)
-            kwargs = try_cast_to_pandas(kwargs)
-            return self.default_to_pandas(fn, *args, **kwargs)
-
-        return wrapper
+        return applier
 
     @classmethod
     def frame_wrapper(cls, df):

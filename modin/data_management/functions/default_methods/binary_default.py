@@ -11,31 +11,29 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-from .any_default import AnyDefault
-
-import pandas
-from pandas.core.dtypes.common import is_list_like
+from .default import DataFrameDefault
 
 
-class BinaryDefault(AnyDefault):
+class BinaryDefault(DataFrameDefault):
     """Build default-to-pandas methods which executes binary functions"""
 
     @classmethod
-    def build_default_to_pandas(cls, fn, fn_name):
+    def build_applier(cls, fn, inplace):
         """
-        Build function that do fallback to pandas for passed binary `fn`.
+        Build binary function that will be defaulted to pandas.
 
         Parameters
         ----------
-        fn: callable,
-            Binary function to apply to the casted to pandas frame and other operand.
-        fn_name: str,
-            Function name which will be shown in default-to-pandas warning message.
+        func: callable,
+            Binary function to apply to the casted to pandas frame and the other operand.
+        inplace: bool (default False),
+            If True return an object to which `func` was applied, otherwise return
+            the result of `func`.
 
         Returns
         -------
         Callable,
-            Method that does fallback to pandas and applies `fn` to the pandas frame.
+            Function that executes binary `func`.
         """
 
         def bin_ops_wrapper(df, other, *args, **kwargs):
@@ -50,13 +48,6 @@ class BinaryDefault(AnyDefault):
             if squeeze_self:
                 df = df.squeeze(axis=1)
 
-            result = fn(df, other, *args, **kwargs)
-            if (
-                not isinstance(result, pandas.Series)
-                and not isinstance(result, pandas.DataFrame)
-                and is_list_like(result)
-            ):
-                result = pandas.DataFrame(result)
-            return result
+            return fn(df, other, *args, **kwargs)
 
-        return super().build_default_to_pandas(bin_ops_wrapper, fn_name)
+        return super().build_applier(bin_ops_wrapper, inplace)

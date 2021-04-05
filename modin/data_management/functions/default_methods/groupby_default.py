@@ -11,18 +11,44 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-from .default import DefaultMethod
+from .default import DataFrameDefault
 
 import pandas
 
 
-class GroupBy:
+class GroupByDefault(DataFrameDefault):
     agg_aliases = [
         "agg",
         "dict_agg",
         pandas.core.groupby.DataFrameGroupBy.agg,
         pandas.core.groupby.DataFrameGroupBy.aggregate,
     ]
+
+    OBJECT_TYPE = "GroupBy"
+
+    @classmethod
+    def register(cls, func):
+        """
+        Build default-to-pandas function that groups casted to pandas DataFrame
+        and applies aggregation function to the every group.
+
+        Parameters
+        ----------
+        func: callable or str,
+            Default aggregation function. If aggregation function is not specified
+            via groupby arguments, then `func` function is used.
+
+        Returns
+        -------
+        callable,
+            Default to pandas function that applies aggregation to GroupBy object.
+        """
+        fn = (
+            cls.build_aggregate_method(func)
+            if cls.is_aggregate(func)
+            else cls.build_groupby_reduce_method(func)
+        )
+        return super().register(fn, fn_name=func.__name__)
 
     @classmethod
     def validate_by(cls, by):
@@ -235,47 +261,3 @@ class GroupBy:
     def is_aggregate(cls, key):
         """Check whether `key` is an alias for pandas.GroupBy.aggregation method"""
         return key in cls.agg_aliases
-
-    @classmethod
-    def build_groupby(cls, func):
-        """
-        Build function that groups DataFrame and applies aggregation
-        function to the every group.
-
-        Parameters
-        ----------
-        func: callable or str,
-            Default aggregation function. If aggregation function is not specified
-            via groupby arguments, then `func` function is used.
-
-        Returns
-        -------
-        callable,
-            GroupBy function.
-        """
-        if cls.is_aggregate(func):
-            return cls.build_aggregate_method(func)
-        return cls.build_groupby_reduce_method(func)
-
-
-class GroupByDefault(DefaultMethod):
-    OBJECT_TYPE = "GroupBy"
-
-    @classmethod
-    def register(cls, func):
-        """
-        Build default-to-pandas function that groups casted to pandas DataFrame
-        and applies aggregation function to the every group.
-
-        Parameters
-        ----------
-        func: callable or str,
-            Default aggregation function. If aggregation function is not specified
-            via groupby arguments, then `func` function is used.
-
-        Returns
-        -------
-        callable,
-            Default to pandas function that applies aggregation to GroupBy object.
-        """
-        return super().register(GroupBy.build_groupby(func), fn_name=func.__name__)

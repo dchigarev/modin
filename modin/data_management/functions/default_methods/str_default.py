@@ -20,4 +20,4 @@ class StrDefault(SeriesDefault):
     @classmethod
     def frame_wrapper(cls, df):
         """Access `str` accessor of the passed frame"""
-        return df.squeeze(axis=1).str
+        return super().frame_wrapper(df).str
