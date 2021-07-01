@@ -4,7 +4,7 @@ channels:
   - conda-forge
 dependencies:
   - pandas==1.2.5
-  - pyarrow==2.0.0
+  - pyarrow==3.0.0
   - libthrift<0.14.1  # ref: modin gh-2840
   - numpy>=1.16.5
   - pip
